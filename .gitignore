@@ -39,3 +39,25 @@ staticfiles/
 
 # Windows
 Thumbs.db
+
+# Flutter
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+.metadata
+android/.gradle/
+android/local.properties
+pubspec.lock
+
+# Python
+__pycache__/
+*.pyc
+venv/
+.env
+db.sqlite3
+
+# General
+.DS_Store
