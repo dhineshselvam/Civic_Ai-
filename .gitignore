@@ -1,0 +1,41 @@
+# Python/Django
+__pycache__/
+*.py[cod]
+*.sqlite3
+env/
+venv/
+*.log
+*.pot
+*.pyc
+media/
+staticfiles/
+*.sqlite3-journal
+*.env
+
+# Django migrations
+*/migrations/*.py
+*/migrations/*.pyc
+
+# Flutter
+**/build/
+**/ios/Flutter/.last_build_id
+**/ios/Pods/
+**/flutter_export_environment.sh
+**/android/app/debug.keystore
+*.flutter-plugins
+*.flutter-plugins-dependencies
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+
+# IDEs
+.vscode/
+.idea/
+*.iml
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db

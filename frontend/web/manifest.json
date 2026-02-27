@@ -1,0 +1,8 @@
+{
+  "name": "Civic Reporting",
+  "short_name": "Civic Reporting",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#FFFFFF",
+  "theme_color": "#00796B"
+}
