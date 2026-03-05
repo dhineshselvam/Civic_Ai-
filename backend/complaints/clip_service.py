@@ -5,7 +5,6 @@ Uses locally installed openai/clip-vit-base-patch32 (do NOT download).
 import os
 from pathlib import Path
 
-# Categories for civic issues
 CATEGORIES = [
     "Garbage",
     "Pothole",
@@ -13,19 +12,30 @@ CATEGORIES = [
     "Road Damage",
 ]
 
-# Default local path; override via env CLIP_MODEL_PATH (set to actual path if model is elsewhere)
-_env_path = os.environ.get("CLIP_MODEL_PATH", "").strip()
-DEFAULT_LOCAL_MODEL_PATH = _env_path or os.path.join(
-    os.path.dirname(__file__), "..", "..", "clip_model",
-)
+# Default local path is set in _get_model_path to backend/clip_model
 
 
 def _get_model_path():
-    """Resolve local CLIP model path (already installed)."""
-    path = Path(DEFAULT_LOCAL_MODEL_PATH)
-    if path.exists():
-        return str(path.resolve())
-    # Fallback: Hugging Face cache hub/models--openai--clip-vit-base-patch32/snapshots/<id>
+    """Resolve local CLIP model path."""
+    # 1. Environment variable if set
+    env_path = os.environ.get("CLIP_MODEL_PATH", "").strip()
+    if env_path:
+        path = Path(env_path)
+        # If relative, resolve against backend root (BASE_DIR is parent of config)
+        if not path.is_absolute():
+            # BASE_DIR would be the backend folder
+            backend_root = Path(__file__).resolve().parent.parent
+            path = backend_root / path
+        if path.exists():
+            return str(path.resolve())
+
+    # 2. Default local path in project
+    backend_root = Path(__file__).resolve().parent.parent
+    local_path = backend_root / "clip_model"
+    if local_path.exists():
+        return str(local_path.resolve())
+
+    # 3. Fallback: Hugging Face cache
     hf_home = os.environ.get("HF_HOME", os.path.expanduser("~/.cache/huggingface"))
     hub_path = Path(hf_home) / "hub"
     if hub_path.exists():
@@ -37,7 +47,8 @@ def _get_model_path():
                         if s.is_dir():
                             return str(s)
                 return str(d)
-    return DEFAULT_LOCAL_MODEL_PATH
+    
+    return str(local_path.resolve())
 
 
 def classify_issue(image_path: str, text_description: str) -> str:
@@ -49,7 +60,8 @@ def classify_issue(image_path: str, text_description: str) -> str:
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"CLIP model not found at {model_path}. "
-            "Set CLIP_MODEL_PATH to the local openai/clip-vit-base-patch32 path."
+            "Please run 'python scripts/setup_clip.py' to download the model locally, "
+            "or set CLIP_MODEL_PATH to its location in .env."
         )
 
     try:

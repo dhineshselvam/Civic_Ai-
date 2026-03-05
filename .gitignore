@@ -61,3 +61,7 @@ db.sqlite3
 
 # General
 .DS_Store
+
+backend/clip_model/backend/clip_model/model.safetensors
+
+backend/clip_model/model.safetensors

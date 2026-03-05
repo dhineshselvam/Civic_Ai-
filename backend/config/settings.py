@@ -39,8 +39,25 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'users',
     'complaints',
+    'rest_framework_simplejwt',
 ]
+
+AUTH_USER_MODEL = 'users.CustomUser'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -128,3 +145,16 @@ if not CORS_ALLOW_ALL_ORIGINS:
 
 # CLIP model path (local only; do not download)
 CLIP_MODEL_PATH = os.environ.get('CLIP_MODEL_PATH', '')
+
+# Real SMTP Email Configuration
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', '1') == '1'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'Civic Ai <noreply@civicai.com>')
+
+# Switch to console backend if no host is configured (prevent errors during dev)
+if not os.environ.get('EMAIL_HOST'):
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
