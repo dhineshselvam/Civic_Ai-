@@ -81,9 +81,10 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
 }
 
 class _AdminReportCard extends StatelessWidget {
-  const _AdminReportCard({required this.report, required this.onRefresh});
+  _AdminReportCard({required this.report, required this.onRefresh});
   final Complaint report;
   final VoidCallback onRefresh;
+  final _api = ApiService();
 
   Color _statusColor(String s) {
     switch (s) {
@@ -99,7 +100,8 @@ class _AdminReportCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _statusColor(report.status);
-    final bool isAssigned = report.assignedCrew != null;
+    final bool isAssigned = report.assignedUsers?.isNotEmpty == true || report.assignedTeams?.isNotEmpty == true;
+    
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       child: ClipRRect(
@@ -132,7 +134,15 @@ class _AdminReportCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                         decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-                        child: Text(report.status, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                        child: Text(report.status.toUpperCase(), style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.edit_note_rounded, color: Colors.white70, size: 20),
+                        onPressed: () => _showEditDialog(context),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'Edit Metadata',
                       ),
                     ],
                   ),
@@ -160,8 +170,12 @@ class _AdminReportCard extends StatelessWidget {
                           children: [
                             Text(report.description, maxLines: 2, overflow: TextOverflow.ellipsis,
                               style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4)),
-                            const SizedBox(height: 6),
-                            Row(
+                            const SizedBox(height: 8),
+                            // Priority Score Wrap
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              crossAxisAlignment: WrapCrossAlignment.center,
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -171,42 +185,40 @@ class _AdminReportCard extends StatelessWidget {
                                   ),
                                   child: Text(
                                     '${report.priorityLabel.toUpperCase()} • ${report.priorityScore}',
-                                    style: const TextStyle(
-                                      color: Colors.redAccent,
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                    style: const TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold),
                                   ),
                                 ),
-                                const SizedBox(width: 8),
                                 if ((report.upvoteCount ?? 1) > 1)
-                                  Row(
-                                    children: [
-                                      const Icon(Icons.people_alt_rounded, color: Colors.orangeAccent, size: 12),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        '${report.upvoteCount} reports',
-                                        style: const TextStyle(
-                                          color: Colors.orangeAccent,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
-                                    ],
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(Icons.people_alt_rounded, color: Colors.orangeAccent, size: 10),
+                                        const SizedBox(width: 4),
+                                        Text('${report.upvoteCount} Reports', style: const TextStyle(color: Colors.orangeAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
                                   ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            if (isAssigned && report.assignedCrewName != null)
+                            const SizedBox(height: 10),
+                            // Crew Info
+                            if (report.assignedUsers != null && report.assignedUsers!.isNotEmpty)
                               Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
+                                padding: const EdgeInsets.only(bottom: 6),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.engineering_rounded, color: Colors.purpleAccent, size: 12),
+                                    const Icon(Icons.engineering_rounded, color: Colors.tealAccent, size: 12),
                                     const SizedBox(width: 4),
-                                    Text(
-                                      'Assigned to: ${report.assignedCrewName}',
-                                      style: const TextStyle(color: Colors.purpleAccent, fontSize: 11, fontWeight: FontWeight.w500),
+                                    Expanded(
+                                      child: Text(
+                                        'Crew: ${report.assignedUsers!.map((u) => u['username'].split('_')[0]).join(", ")}',
+                                        style: TextStyle(color: Colors.tealAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w500),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -228,7 +240,7 @@ class _AdminReportCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                // Action buttons
+                // Actions
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Row(
@@ -240,14 +252,28 @@ class _AdminReportCard extends StatelessWidget {
                             onRefresh();
                           }),
                         ),
-                      if (report.status == 'Reported') const SizedBox(width: 10),
+                      if (report.status == 'Reported' || report.status == 'Verified')
+                        const SizedBox(width: 10),
                       if (report.status != 'Resolved')
                         Expanded(
                           child: _actionBtn(
-                              isAssigned ? 'REASSIGN CREW' : 'ASSIGN CREW',
+                              'ASSIGN CREW',
                               Icons.engineering_rounded,
                               Colors.purpleAccent,
                               () => _showAssignDialog(context)),
+                        ),
+                      if (report.status != 'Resolved' && isAssigned)
+                        const SizedBox(width: 10),
+                      if (report.status != 'Resolved' && isAssigned)
+                        Expanded(
+                          child: _actionBtn(
+                              'RESOLVE',
+                              Icons.check_circle_outline_rounded,
+                              Colors.tealAccent,
+                              () async {
+                                await ApiService().updateComplaintStatus(report.id, 'Resolved');
+                                onRefresh();
+                              }),
                         ),
                     ],
                   ),
@@ -282,7 +308,6 @@ class _AdminReportCard extends StatelessWidget {
     bool loadingCrew = true;
     String? assignError;
 
-    // Get the matching department from predicted category
     String? suggestedDept = _suggestDepartment(report.predicted_category);
 
     showDialog(
@@ -310,17 +335,7 @@ class _AdminReportCard extends StatelessWidget {
             child: AlertDialog(
               backgroundColor: Colors.indigo.shade900.withOpacity(0.95),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.white24)),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Assign to Crew', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
-                  if (suggestedDept != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: Text('Suggested: $suggestedDept dept', style: const TextStyle(color: Colors.tealAccent, fontSize: 11)),
-                    ),
-                ],
-              ),
+              title: const Text('Assign to Crew', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
               content: loadingCrew
                   ? const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(color: Colors.tealAccent)))
                   : assignError != null
@@ -340,14 +355,7 @@ class _AdminReportCard extends StatelessWidget {
                               ),
                               items: crewList.map((c) => DropdownMenuItem<String>(
                                 value: c['username'] as String,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(c['username'] as String, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    Text(c['department'] ?? 'No dept', style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                                  ],
-                                ),
+                                child: Text(c['username'] as String),
                               )).toList(),
                               onChanged: (v) => setDlgState(() => selectedUsername = v),
                             ),
@@ -355,8 +363,6 @@ class _AdminReportCard extends StatelessWidget {
                 TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
                 if (!loadingCrew && selectedUsername != null)
                   ElevatedButton(
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.purpleAccent, foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     onPressed: () async {
                       await api.assignComplaint(report.id, selectedUsername!);
                       if (ctx.mounted) Navigator.pop(ctx);
@@ -372,14 +378,197 @@ class _AdminReportCard extends StatelessWidget {
     );
   }
 
-  /// Map AI category to department code
+  void _showEditDialog(BuildContext context) {
+    String selectedCategory = report.predicted_category;
+    String selectedPriority = report.priorityLabel;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: AlertDialog(
+            backgroundColor: Colors.indigo.shade900.withOpacity(0.95),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.white24)),
+            title: const Text('Edit Metadata', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  value: selectedCategory,
+                  dropdownColor: Colors.indigo.shade900,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Category', labelStyle: TextStyle(color: Colors.white54)),
+                  items: {selectedCategory, 'Road Issue', 'Garbage Overflow', 'Streetlight Issue', 'General'}
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setDlgState(() => selectedCategory = v!),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedPriority,
+                  dropdownColor: Colors.indigo.shade900,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: const InputDecoration(labelText: 'Priority', labelStyle: TextStyle(color: Colors.white54)),
+                  items: {selectedPriority, 'Low', 'Medium', 'High', 'Critical'}
+                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                      .toList(),
+                  onChanged: (v) => setDlgState(() => selectedPriority = v!),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _showAssignDialog(context);
+                  },
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                  label: const Text('REASSIGN CREW'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purpleAccent.withOpacity(0.1),
+                    foregroundColor: Colors.purpleAccent,
+                  ),
+                ),
+                if (report.status == 'Assigned' || report.status == 'In-Progress') ...[
+                  const SizedBox(height: 12),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _showManageCrewDialog(context, report);
+                    },
+                    icon: const Icon(Icons.people_alt_rounded, size: 16),
+                    label: const Text('MANAGE TEAM'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.tealAccent.withOpacity(0.1),
+                      foregroundColor: Colors.tealAccent,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    await _api.editComplaint(report.id, {
+                      'predicted_category': selectedCategory,
+                      'priority_label': selectedPriority,
+                    });
+                    if (ctx.mounted) Navigator.pop(ctx);
+                    onRefresh();
+                  } catch (e) {
+                    if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                },
+                child: const Text('SAVE'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   String? _suggestDepartment(String category) {
     final c = category.toLowerCase();
-    if (c.contains('pothole') || c.contains('road') || c.contains('pavement')) return 'ROAD';
-    if (c.contains('garbage') || c.contains('waste') || c.contains('sanit')) return 'SANITATION';
-    if (c.contains('light') || c.contains('electric') || c.contains('power')) return 'ELECTRICAL';
-    if (c.contains('water') || c.contains('drain') || c.contains('flood')) return 'WATER';
-    if (c.contains('park') || c.contains('tree') || c.contains('garden')) return 'PARKS';
+    if (c.contains('pothole') || c.contains('road')) return 'ROAD';
+    if (c.contains('garbage') || c.contains('waste')) return 'SANITATION';
+    if (c.contains('light') || c.contains('electric')) return 'ELECTRICAL';
     return null;
+  }
+
+  void _showManageCrewDialog(BuildContext context, Complaint issue) async {
+    List<Map<String, dynamic>> allCrew = [];
+    bool diaLoading = true;
+    final suggestedDept = _suggestDepartment(issue.predicted_category);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDiaState) {
+          if (diaLoading && allCrew.isEmpty) {
+            _api.listCrewMembers().then((list) {
+              setDiaState(() {
+                if (suggestedDept != null) {
+                  allCrew = list.where((c) => c['department'] == suggestedDept).toList();
+                } else {
+                  allCrew = list;
+                }
+                diaLoading = false;
+              });
+            });
+          }
+
+          return AlertDialog(
+            backgroundColor: Colors.indigo.shade900,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('Manage Crew - Issue #${issue.id}', style: const TextStyle(color: Colors.white, fontSize: 16)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: diaLoading 
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('CURRENTLY ASSIGNED', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        if (issue.assignedUsers == null || issue.assignedUsers!.isEmpty)
+                          const Text('No individual members assigned.', style: TextStyle(color: Colors.white30, fontSize: 11))
+                        else
+                          ...issue.assignedUsers!.map((u) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(radius: 12, child: Text(u['username'][0].toUpperCase(), style: const TextStyle(fontSize: 10))),
+                            title: Text(u['username'], style: const TextStyle(color: Colors.white, fontSize: 13)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18),
+                              onPressed: () async {
+                                await _api.manageCrewAssignment(complaintId: issue.id, action: 'remove', userId: u['id']);
+                                Navigator.pop(ctx);
+                                onRefresh();
+                              },
+                            ),
+                          )),
+                        const Divider(color: Colors.white10, height: 24),
+                        Text('ADD personnel (${suggestedDept ?? "ALL"})', style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 150,
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: allCrew.length,
+                            itemBuilder: (context, index) {
+                              final crew = allCrew[index];
+                              final isAlreadyAssigned = issue.assignedUsers?.any((u) => u['id'] == crew['id']) ?? false;
+                              if (isAlreadyAssigned) return const SizedBox.shrink();
+
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.person_add_outlined, color: Colors.tealAccent, size: 18),
+                                title: Text(crew['username'], style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                subtitle: Text(crew['department'] ?? '', style: const TextStyle(color: Colors.white30, fontSize: 10)),
+                                onTap: () async {
+                                  await _api.manageCrewAssignment(complaintId: issue.id, action: 'add', userId: crew['id']);
+                                  Navigator.pop(ctx);
+                                  onRefresh();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            ],
+          );
+        },
+      ),
+    );
   }
 }

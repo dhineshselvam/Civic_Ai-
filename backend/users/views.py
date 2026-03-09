@@ -135,3 +135,67 @@ class CrewRegistrationView(APIView):
             user.save()
             return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class TeamListView(APIView):
+    """Admin-only view to list and create teams."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'ADMIN':
+            return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+        from .models import Team
+        from .serializers import TeamSerializer
+        teams = Team.objects.all()
+        serializer = TeamSerializer(teams, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        if request.user.role != 'ADMIN':
+            return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+        from .serializers import TeamSerializer
+        serializer = TeamSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class TeamMemberManageView(APIView):
+    """Admin-only view to add/remove a crew member from a team."""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request, pk):
+        if request.user.role != 'ADMIN':
+            return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+        from .models import Team, CustomUser
+        try:
+            team = Team.objects.get(pk=pk)
+        except Team.DoesNotExist:
+            return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
+            
+        action = request.data.get('action') # 'add' or 'remove'
+        user_id = request.data.get('user_id')
+        try:
+            member = CustomUser.objects.get(id=user_id, role='CREW')
+            if action == 'add':
+                member.team = team
+            elif action == 'remove':
+                member.team = None
+            else:
+                return Response({'error': "Invalid action. Use 'add' or 'remove'."}, status=status.HTTP_400_BAD_REQUEST)
+            member.save()
+            return Response({'message': f'Member {action}ed successfully'})
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Crew member not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class CrewListView(APIView):
+    """Admin-only view to list all field crew members."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        if request.user.role != 'ADMIN':
+            return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+        from .serializers import UserSerializer
+        crew = CustomUser.objects.filter(role='CREW').select_related('team')
+        serializer = UserSerializer(crew, many=True)
+        return Response(serializer.data)
+

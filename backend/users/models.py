@@ -1,6 +1,23 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+class Team(models.Model):
+    """
+    Crew members are assigned to Teams for deployment.
+    """
+    DEPARTMENT_CHOICES = (
+        ('ROAD', 'Road Maintenance'),
+        ('SANITATION', 'Sanitation & Waste'),
+        ('ELECTRICAL', 'Electrical & Lighting'),
+    )
+    name = models.CharField(max_length=50, unique=True)
+    department = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.department})"
+
 class CustomUser(AbstractUser):
     """
     Custom user model for Civic AI.
@@ -12,19 +29,11 @@ class CustomUser(AbstractUser):
         ('ADMIN', 'System Admin'),
     )
 
-    DEPARTMENT_CHOICES = (
-        ('ROAD', 'Road Maintenance'),
-        ('SANITATION', 'Sanitation & Waste'),
-        ('ELECTRICAL', 'Electrical & Lighting'),
-        ('WATER', 'Water & Drainage'),
-        ('PARKS', 'Parks & Public Spaces'),
-        ('GENERAL', 'General Maintenance'),
-    )
-    
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=15, null=True, blank=True)
     role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='CITIZEN')
-    department = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, null=True, blank=True)
+    department = models.CharField(max_length=20, choices=Team.DEPARTMENT_CHOICES, null=True, blank=True)
+    team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
     trust_score = models.IntegerField(default=50)  # Neutral score to start
     
     # Track contributions

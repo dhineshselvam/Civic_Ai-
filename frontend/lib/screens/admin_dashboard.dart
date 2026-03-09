@@ -260,15 +260,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        issue.address ?? 'Location coordinates captured',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          Icon(Icons.location_on_outlined, color: Colors.white30, size: 10),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              issue.address ?? 'Coordinates Captured',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10, letterSpacing: 0.3),
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 8),
-                      Row(
+                      const SizedBox(height: 8),
+                      // Priority and upvotes (Wrapped to prevent overflow)
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Text(
                             'Score: ${issue.priorityScore} (${issue.priorityLabel.toUpperCase()})',
@@ -278,7 +291,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                               fontSize: 11,
                             ),
                           ),
-                          const SizedBox(width: 8),
                           if (issue.upvoteCount != null && issue.upvoteCount! > 1)
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -287,11 +299,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
-                                '${issue.upvoteCount} reports',
+                                '🔥 ${issue.upvoteCount} Reports',
                                 style: const TextStyle(
                                   color: Colors.orangeAccent,
                                   fontSize: 10,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.5,
                                 ),
                               ),
                             ),
@@ -309,32 +322,109 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       style: TextStyle(color: Colors.orangeAccent.withOpacity(0.8), fontSize: 10),
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      height: 28,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            await _api.autoAssignComplaint(issue.id);
-                            _loadData();
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Auto-assign failed: $e')),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.redAccent.withOpacity(0.15),
-                          foregroundColor: Colors.redAccent,
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          elevation: 0,
+                    if (issue.status == 'Assigned' || issue.status == 'In-Progress')
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.teal.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                        constraints: const BoxConstraints(maxWidth: 100),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              issue.assignedTeams?.isNotEmpty == true 
+                                ? issue.assignedTeams![0]['name']
+                                : 'Assigned',
+                              textAlign: TextAlign.right,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.tealAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                            if (issue.assignedTeams?.isNotEmpty == true && issue.assignedTeams![0]['members'] != null)
+                              Text(
+                                (issue.assignedTeams![0]['members'] as List).join(', '),
+                                textAlign: TextAlign.right,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.tealAccent.withOpacity(0.6), fontSize: 8),
+                              ),
+                          ],
                         ),
-                        child: const Text('AUTO DISPATCH'),
+                      )
+                    else if (issue.assignedUsers != null && issue.assignedUsers!.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                        constraints: const BoxConstraints(maxWidth: 120),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'DETAILED CREW',
+                              style: TextStyle(color: Colors.indigoAccent.shade100, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              issue.assignedUsers!.map((u) => u['username'].split('_')[0]).join(', ').toUpperCase(),
+                              textAlign: TextAlign.right,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.w500),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      SizedBox(
+                        height: 28,
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            try {
+                              final msg = await _api.autoAssignComplaint(issue.id);
+                              _loadData();
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(msg, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                    backgroundColor: Colors.teal.shade700,
+                                    duration: const Duration(seconds: 4),
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Auto-assign failed: $e'), backgroundColor: Colors.redAccent),
+                                );
+                              }
+                            }
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.redAccent.withOpacity(0.15),
+                            foregroundColor: Colors.redAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            textStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.8),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          child: const Text('AUTO DISPATCH'),
+                        ),
                       ),
-                    ),
+                    if (issue.status == 'Assigned' || issue.status == 'In-Progress')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: SizedBox(
+                          height: 24,
+                          child: TextButton(
+                            onPressed: () => _showManageCrewDialog(issue),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8),
+                              backgroundColor: Colors.indigoAccent.withOpacity(0.1),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            child: const Text('MANAGE TEAM', style: TextStyle(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -394,5 +484,112 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
       ),
     );
+  }
+
+  void _showManageCrewDialog(Complaint issue) async {
+    List<Map<String, dynamic>> allCrew = [];
+    bool diaLoading = true;
+    
+    // Suggest department based on category
+    final suggestedDept = _suggestDepartment(issue.predicted_category);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDiaState) {
+          if (diaLoading && allCrew.isEmpty) {
+            _api.listCrewMembers().then((list) {
+              setDiaState(() {
+                // Filter by suggested department for professionalism
+                if (suggestedDept != null) {
+                  allCrew = list.where((c) => c['department'] == suggestedDept).toList();
+                } else {
+                  allCrew = list;
+                }
+                diaLoading = false;
+              });
+            });
+          }
+
+          return AlertDialog(
+            backgroundColor: Colors.indigo.shade900,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Text('Manage Crew - Issue #${issue.id}', style: const TextStyle(color: Colors.white, fontSize: 16)),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: diaLoading 
+                ? const Center(child: CircularProgressIndicator())
+                : SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('CURRENTLY ASSIGNED', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        if (issue.assignedUsers == null || issue.assignedUsers!.isEmpty)
+                          const Text('No individual members assigned yet.', style: TextStyle(color: Colors.white30, fontSize: 11))
+                        else
+                          ...issue.assignedUsers!.map((u) => ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(radius: 12, child: Text(u['username'][0].toUpperCase(), style: const TextStyle(fontSize: 10))),
+                            title: Text(u['username'], style: const TextStyle(color: Colors.white, fontSize: 13)),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 18),
+                              onPressed: () async {
+                                await _api.manageCrewAssignment(complaintId: issue.id, action: 'remove', userId: u['id']);
+                                Navigator.pop(ctx);
+                                _loadData();
+                              },
+                            ),
+                          )),
+                        const Divider(color: Colors.white10, height: 24),
+                        const Text('ADD EXTRA PERSONNEL', style: TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Container(
+                          height: 150,
+                          child: ListView.builder(
+                            shrinkWrap: true,
+                            itemCount: allCrew.length,
+                            itemBuilder: (context, index) {
+                              final crew = allCrew[index];
+                              final isAssigned = issue.assignedUsers?.any((u) => u['id'] == crew['id']) ?? false;
+                              if (isAssigned) return const SizedBox.shrink();
+
+                              return ListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: const Icon(Icons.person_add_outlined, color: Colors.tealAccent, size: 18),
+                                title: Text(crew['username'], style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                                subtitle: Text(crew['department'] ?? '', style: const TextStyle(color: Colors.white30, fontSize: 10)),
+                                onTap: () async {
+                                  await _api.manageCrewAssignment(complaintId: issue.id, action: 'add', userId: crew['id']);
+                                  Navigator.pop(ctx);
+                                  _loadData();
+                                },
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// Helper to map category to department
+  String? _suggestDepartment(String category) {
+    final c = category.toLowerCase();
+    if (c.contains('road') || c.contains('pothole')) return 'ROAD';
+    if (c.contains('garbage') || c.contains('waste') || c.contains('sanit')) return 'SANITATION';
+    if (c.contains('light') || c.contains('electric') || c.contains('power')) return 'ELECTRICAL';
+    return null;
   }
 }

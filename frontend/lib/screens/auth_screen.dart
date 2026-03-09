@@ -16,9 +16,9 @@ class _AuthScreenState extends State<AuthScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
-  
   bool _isLogin = true;
   bool _loading = false;
+  bool _hidePassword = true; // Added visibility toggle state
   String? _error;
 
   Future<void> _submit() async {
@@ -154,7 +154,19 @@ class _AuthScreenState extends State<AuthScreen> {
                             keyboardType: _isLogin ? null : TextInputType.emailAddress,
                           ),
                           const SizedBox(height: 16),
-                          _buildPremiumField(_passwordController, Icons.lock_open_rounded, 'Password', isPassword: true),
+                          _buildPremiumField(
+                            _passwordController, 
+                            Icons.lock_open_rounded, 
+                            'Password', 
+                            isPassword: _hidePassword,
+                            suffixIcon: IconButton(
+                              icon: Icon(
+                                _hidePassword ? Icons.visibility_off_rounded : Icons.visibility_rounded,
+                                color: Colors.teal.shade200,
+                              ),
+                              onPressed: () => setState(() => _hidePassword = !_hidePassword),
+                            ),
+                          ),
                           
                           const SizedBox(height: 32),
                           
@@ -248,7 +260,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  Widget _buildPremiumField(TextEditingController controller, IconData icon, String hint, {bool isPassword = false, TextInputType? keyboardType}) {
+  Widget _buildPremiumField(TextEditingController controller, IconData icon, String hint, {bool isPassword = false, TextInputType? keyboardType, Widget? suffixIcon}) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
@@ -264,6 +276,7 @@ class _AuthScreenState extends State<AuthScreen> {
           hintText: hint,
           hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
           prefixIcon: Icon(icon, color: Colors.teal.shade200, size: 22),
+          suffixIcon: suffixIcon, // Handle trailing eye icon
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         ),

@@ -7,6 +7,7 @@ from .views import (
     CrewListView,
     HighPriorityView,
     AutoAssignView,
+    ManageAssignmentView,
 )
 from django.urls import path
 
@@ -16,6 +17,7 @@ urlpatterns = [
     path('complaints/<int:pk>/', ComplaintDetailView.as_view(), name='complaint-detail'),
     path('complaints/<int:pk>/feedback/', ComplaintDetailView.as_view(), name='complaint-feedback'),
     path('complaints/<int:pk>/assign/', ComplaintDetailView.as_view(), name='complaint-assign'),
+    path('complaints/<int:pk>/manage-crew/', ManageAssignmentView.as_view(), name='complaint-manage-crew'), # Added manage-crew path
     path('complaints/<int:pk>/auto-assign/', AutoAssignView.as_view(), name='complaint-auto-assign'),
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('analytics/', CityAnalyticsView.as_view(), name='city-analytics'),

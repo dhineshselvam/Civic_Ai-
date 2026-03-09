@@ -5,7 +5,7 @@ from typing import Optional, List, Tuple
 
 from django.db.models import Q
 
-from .models import Complaint
+from complaints.models import Complaint
 
 try:
     from PIL import Image

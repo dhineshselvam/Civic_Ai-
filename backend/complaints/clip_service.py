@@ -54,7 +54,7 @@ def _get_model_path():
 def classify_issue(image_path: str, text_description: str) -> str:
     """
     Classify a civic issue from image path and text description using local CLIP.
-    Returns one of: Garbage, Pothole, Water Leakage, Streetlight Issue, Road Damage.
+    Returns one of: Garbage, Pothole, Streetlight Issue, Road Damage.
     """
     model_path = _get_model_path()
     if not os.path.exists(model_path):

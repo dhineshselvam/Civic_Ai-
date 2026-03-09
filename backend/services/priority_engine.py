@@ -39,21 +39,30 @@ def _base_from_category(category: str) -> int:
 
 def _danger_bonus(description: str) -> int:
     text = (description or "").lower()
+    
+    # Severity keywords focused exclusively on Road, Garbage, and Streetlight issues
     danger_keywords = [
-        "accident",
-        "injury",
-        "injured",
-        "fire",
-        "spark",
-        "exposed wire",
-        "electrocute",
-        "collapse",
-        "fall",
-        "flooded",
-        "gas leak",
-        "smoke",
+        # Road / Pothole Severity
+        "accident", "crash", "injury", "injured", "fall", "fell", 
+        "flat tire", "broken axle", "crater", "deep", "hazard", 
+        "severe", "damaged vehicle", "flipped", "dangerous", "urgent",
+        
+        # Garbage / Sanitation Severity
+        "biohazard", "toxic", "disease", "dead animal", "rats", 
+        "maggots", "infested", "needles", "sharp glass", "medical waste", 
+        "foul smell", "unbearable stench", "blocking the road",
+        
+        # Streetlight / Electrical Severity
+        "pitch dark", "completely black", "unsafe", "blind spot", 
+        "sparking", "exposed wire", "live wire", "hanging wire", 
+        "electrocute", "electrocution", "short circuit", "burning smell"
     ]
-    return 15 if any(kw in text for kw in danger_keywords) else 0
+    
+    matches = sum(1 for kw in danger_keywords if kw in text)
+    if matches == 0:
+        return 0
+    # Base +15 for any match, +5 for each additional match (cap at +30)
+    return min(15 + (matches - 1) * 5, 30)
 
 
 def _night_bonus(ts: datetime) -> int:
@@ -86,13 +95,16 @@ def _age_bonus(ts: datetime, is_resolved: bool) -> int:
 def _credibility_bonus(trust_score: Optional[int]) -> int:
     if trust_score is None:
         return 0
+    # Adjusted severity scaling for credibility impact
     if trust_score >= 80:
-        return 10   # Trusted
-    if trust_score >= 40:
-        return 0    # Normal
-    if trust_score >= 20:
-        return -5   # Low
-    return -10      # Unreliable
+        return 15   # Highly Trusted: bigger bump to ensure their claims jump the queue
+    if trust_score >= 50:
+        return 5    # Trusted: slight bump
+    if trust_score >= 30:
+        return 0    # Normal: no impact
+    if trust_score >= 15:
+        return -10  # Low Trust: penalty for historical inaccuracies
+    return -20      # Unreliable: severe penalty for spammers
 
 
 def _label_from_score(score: int) -> str:

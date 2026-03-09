@@ -255,6 +255,38 @@ class ApiService {
     throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
 
+  /// List all teams (Admin only)
+  Future<List<Map<String, dynamic>>> listTeams() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/users/teams/'), headers: _headers);
+    if (response.statusCode == 200) {
+      final list = jsonDecode(response.body) as List<dynamic>;
+      return list.cast<Map<String, dynamic>>();
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
+
+  /// List all field crew members (Admin only)
+  Future<List<Map<String, dynamic>>> listCrewMembers() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/users/crew-list/'), headers: _headers);
+    if (response.statusCode == 200) {
+      final list = jsonDecode(response.body) as List<dynamic>;
+      return list.cast<Map<String, dynamic>>();
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
+
+  /// Update a member's team (Admin only)
+  Future<void> updateMemberTeam(int teamId, int userId, String action) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/teams/$teamId/members/'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'action': action}),
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
   /// Assign a complaint to a crew member (Admin only)
   Future<void> assignComplaint(int id, String crewUsername) async {
     final response = await http.post(
@@ -268,7 +300,7 @@ class ApiService {
   }
 
   /// Auto-assign best crew (Admin only)
-  Future<void> autoAssignComplaint(int id) async {
+  Future<String> autoAssignComplaint(int id) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/api/complaints/$id/auto-assign/'),
       headers: _headers,
@@ -279,6 +311,30 @@ class ApiService {
         message: _parseError(response.body, response.statusCode),
       );
     }
+    final data = jsonDecode(response.body);
+    return data['message'] ?? 'Successfully assigned';
+  }
+
+  /// Manage individual crew assignment (Admin only)
+  /// action: 'add' | 'remove' | 'swap'
+  Future<void> manageCrewAssignment({
+    required int complaintId,
+    required String action,
+    int? userId,
+    int? swapWithId,
+  }) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/complaints/$complaintId/manage-crew/'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': action,
+        'user_id': userId,
+        'swap_with_id': swapWithId,
+      }),
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
   }
 
   /// Update complaint status (Crew/Admin)
@@ -287,6 +343,18 @@ class ApiService {
       Uri.parse('$_baseUrl/api/complaints/$id/assign/'),
       headers: _headers,
       body: jsonEncode({'status': newStatus}),
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
+  /// Manually edit complaint metadata (category, priority)
+  Future<void> editComplaint(int id, Map<String, dynamic> data) async {
+    final response = await http.patch(
+      Uri.parse('$_baseUrl/api/complaints/$id/'),
+      headers: _headers,
+      body: jsonEncode(data),
     );
     if (response.statusCode != 200) {
       throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
@@ -341,7 +409,8 @@ class Complaint {
     this.imageUrl,
     this.address,
     this.assignedCrew,
-    this.assignedCrewName,
+    this.assignedTeams,
+    this.assignedUsers,
     this.rating,
     this.feedback,
     this.upvoteCount,
@@ -360,7 +429,8 @@ class Complaint {
       createdAt: DateTime.parse(map['created_at'] as String),
       address: map['address'] as String?,
       assignedCrew: map['assigned_crew'] as int?,
-      assignedCrewName: map['assigned_crew_username'] as String?,
+      assignedTeams: (map['assigned_teams'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
+      assignedUsers: (map['assigned_users'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
       rating: map['rating'] as int?,
       feedback: map['feedback'] as String?,
       priorityScore: map['priority_score'] as int? ?? 50,
@@ -380,7 +450,8 @@ class Complaint {
   final DateTime createdAt;
   final String? address;
   final int? assignedCrew;
-  final String? assignedCrewName;
+  final List<Map<String, dynamic>>? assignedTeams;
+  final List<Map<String, dynamic>>? assignedUsers;
   final int? rating;
   final String? feedback;
   final int priorityScore;

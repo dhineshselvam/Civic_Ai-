@@ -6,17 +6,32 @@ from .models import Complaint
 class ComplaintSerializer(serializers.ModelSerializer):
     """Full serializer for viewing complaint details."""
     image_url = serializers.SerializerMethodField()
-    assigned_crew_username = serializers.CharField(source='assigned_crew.username', read_only=True)
+    assigned_teams = serializers.SerializerMethodField()
+    assigned_users = serializers.SerializerMethodField()
 
     class Meta:
         model = Complaint
         fields = [
-            'id', 'image', 'image_url', 'description', 'latitude', 'longitude',
-            'timestamp', 'predicted_category', 'status', 'user',
-            'assigned_crew', 'assigned_crew_username',
-            'rating', 'feedback', 'created_at', 'updated_at',
-            'address', 'priority_score', 'priority_label', 'upvote_count',
+            'id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
+            'predicted_category', 'priority_score', 'priority_label', 'address', 'upvote_count',
+            'status', 'assigned_teams', 'assigned_users', 'rating', 'feedback',
+            'created_at', 'updated_at'
         ]
+
+    def get_assigned_users(self, obj):
+        from users.serializers import UserSerializer
+        return UserSerializer(obj.assigned_users.all(), many=True).data
+
+    def get_assigned_teams(self, obj):
+        teams_data = []
+        for team in obj.assigned_teams.prefetch_related('members').all():
+            teams_data.append({
+                'id': team.id,
+                'name': team.name,
+                'department': team.department,
+                'members': [m.username for m in team.members.all()]
+            })
+        return teams_data
 
     def get_image_url(self, obj):
         request = self.context.get('request')

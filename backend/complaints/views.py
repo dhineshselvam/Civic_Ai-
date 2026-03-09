@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from .clip_service import classify_issue
 from .models import Complaint
-from .duplicate_checker import compute_image_hash, find_nearby_duplicate
+from services.duplicate_checker import compute_image_hash, find_nearby_duplicate
 from .notification_service import send_notification
 from .serializers import (
     ComplaintCreateSerializer, 
@@ -170,7 +170,7 @@ class ComplaintListView(APIView):
         status_filter = request.query_params.get('status')
 
         if assigned_to_me == 'true' and request.user.is_authenticated:
-            complaints = Complaint.objects.filter(assigned_crew=request.user)
+            complaints = Complaint.objects.filter(assigned_teams__members=request.user)
         elif request.user.is_authenticated and request.user.role == 'CITIZEN':
             complaints = Complaint.objects.filter(user=request.user)
         elif request.user.is_authenticated and request.user.role == 'ADMIN':
@@ -202,10 +202,17 @@ class ComplaintDetailView(APIView):
     def patch(self, request, pk):
         try:
             complaint = Complaint.objects.get(pk=pk)
-            serializer = ComplaintFeedbackSerializer(complaint, data=request.data, partial=True)
+            # Use specific serializer for feedback, or general one for metadata edit
+            if 'rating' in request.data:
+                serializer = ComplaintFeedbackSerializer(complaint, data=request.data, partial=True)
+            elif request.user.role == 'ADMIN':
+                serializer = ComplaintSerializer(complaint, data=request.data, partial=True)
+            else:
+                return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
+                
             if serializer.is_valid():
                 serializer.save()
-                return Response({'message': 'Feedback submitted successfully'})
+                return Response({'message': 'Update successful', 'data': serializer.data})
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Complaint.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -222,8 +229,14 @@ class ComplaintDetailView(APIView):
                 from users.models import CustomUser
                 try:
                     crew_member = CustomUser.objects.get(username=crew_username, role='CREW')
-                    complaint.assigned_crew = crew_member
+                    if crew_member.team:
+                        complaint.assigned_teams.add(crew_member.team)
+                    
+                    # Also add individual user to assigned_users for detailed tracking
+                    complaint.assigned_users.add(crew_member)
+                    
                     complaint.status = 'Assigned'
+                    complaint.save()
                     
                     if complaint.user:
                         send_notification(
@@ -344,80 +357,43 @@ class HighPriorityView(APIView):
 
 class AutoAssignView(APIView):
     """
-    POST /api/complaints/<id>/auto-assign/
-    Automatically pick the 'best' crew based on department and workload.
+    POST /api/complaints/auto-assign/
+    Automatically pick the 'best' teams for all unassigned complaints based on LP Optimization.
     Admin only.
     """
     permission_classes = [permissions.IsAuthenticated]
 
-    def post(self, request, pk):
+    def post(self, request, pk=None):
         if request.user.role != 'ADMIN':
             return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
 
-        from users.models import CustomUser
+        from services.lp_optimizer import auto_assign_teams
 
         try:
-            complaint = Complaint.objects.get(pk=pk)
-        except Complaint.DoesNotExist:
-            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+            # Note: We run global optimization to assign the best teams across all unmatched issues
+            assigned_count = auto_assign_teams()
+            
+            msg = f'Optimization complete. Successfully assigned {assigned_count} complaints.'
+            if pk:
+                from complaints.models import Complaint
+                try:
+                    comp = Complaint.objects.get(pk=pk)
+                    teams = comp.assigned_teams.all()
+                    if teams.exists():
+                        team_names = ", ".join(t.name for t in teams)
+                        msg = f'Issue #{pk} assigned to {team_names}.'
+                    else:
+                        msg = f'Issue #{pk} could not be automatically assigned. (Not enough crew or mismatch).'
+                except Complaint.DoesNotExist:
+                    pass
 
-        # Infer target department from predicted category (aligned with three domains)
-        category = (complaint.predicted_category or '').lower()
-        target_dept = None
-        if any(k in category for k in ['pothole', 'road', 'street', 'pavement', 'speed breaker', 'manhole']):
-            target_dept = 'ROAD'          # Road damage
-        elif any(k in category for k in ['garbage', 'waste', 'overflow', 'bin', 'dump', 'sanit']):
-            target_dept = 'SANITATION'    # Waste overflow
-        elif any(k in category for k in ['light', 'lamp', 'streetlight', 'dark', 'pole', 'electric']):
-            target_dept = 'ELECTRICAL'    # Streetlight failures
-
-        # Candidate crew: matching department first; fallback to any crew
-        crew_qs = CustomUser.objects.filter(role='CREW')
-        if target_dept:
-            dept_qs = crew_qs.filter(department=target_dept)
-            if dept_qs.exists():
-                crew_qs = dept_qs
-
-        if not crew_qs.exists():
-            return Response({'error': 'No crew members available'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Compute simple "cost" = open workload (+ small penalty if department mismatched)
-        open_statuses = ['Reported', 'Verified', 'Assigned', 'In-Progress']
-        best_crew = None
-        best_cost = None
-        for crew in crew_qs:
-            load = Complaint.objects.filter(assigned_crew=crew, status__in=open_statuses).count()
-            penalty = 0
-            if target_dept and crew.department and crew.department != target_dept:
-                penalty = 2
-            cost = load + penalty
-            if best_cost is None or cost < best_cost:
-                best_cost = cost
-                best_crew = crew
-
-        if not best_crew:
-            return Response({'error': 'No suitable crew found'}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Assign and notify
-        complaint.assigned_crew = best_crew
-        if complaint.status in ['Reported', 'Verified']:
-            complaint.status = 'Assigned'
-        complaint.save()
-
-        if complaint.user:
-            send_notification(
-                user=complaint.user,
-                title="Issue Assigned",
-                message=f"Your report #{complaint.id} has been auto-assigned to our field crew.",
-            )
-
-        send_notification(
-            user=best_crew,
-            title="New Task Assigned",
-            message=f"You have been auto-assigned a new task: {complaint.predicted_category}.",
-        )
-
-        return Response(ComplaintSerializer(complaint, context={'request': request}).data, status=status.HTTP_200_OK)
+            return Response({
+                'message': msg,
+                'assigned_count': assigned_count
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("LP Auto-assign failed")
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 
@@ -470,8 +446,8 @@ class CityAnalyticsView(APIView):
         from users.models import CustomUser
         dept_load = []
         for crew in CustomUser.objects.filter(role='CREW').exclude(department=None):
-            assigned = Complaint.objects.filter(assigned_crew=crew).count()
-            resolved_c = Complaint.objects.filter(assigned_crew=crew, status='Resolved').count()
+            assigned = Complaint.objects.filter(assigned_teams__members=crew).distinct().count()
+            resolved_c = Complaint.objects.filter(assigned_teams__members=crew, status='Resolved').distinct().count()
             dept_load.append({
                 'username': crew.username,
                 'department': crew.department,
@@ -506,3 +482,51 @@ class CrewListView(APIView):
         
         return Response(UserSerializer(crew, many=True).data)
 
+
+class ManageAssignmentView(APIView):
+    """
+    POST /api/complaints/<id>/manage-crew/
+    Granular control over assignments.
+    Body: { "action": "add"|"remove"|"swap", "user_id": 123, "swap_with_id": 456 }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        if request.user.role != 'ADMIN':
+            return Response({'error': 'Admin only'}, status=status.HTTP_403_FORBIDDEN)
+        
+        try:
+            complaint = Complaint.objects.get(pk=pk)
+            action = request.data.get('action')
+            user_id = request.data.get('user_id')
+            
+            from users.models import CustomUser
+            
+            if action == 'add':
+                user = CustomUser.objects.get(pk=user_id, role='CREW')
+                complaint.assigned_users.add(user)
+                if complaint.status == 'Reported' or complaint.status == 'Verified':
+                    complaint.status = 'Assigned'
+                complaint.save()
+                send_notification(user, "New Task", f"You've been added to task #{complaint.id}")
+                
+            elif action == 'remove':
+                user = CustomUser.objects.get(pk=user_id)
+                complaint.assigned_users.remove(user)
+                complaint.save()
+                
+            elif action == 'swap':
+                old_user = CustomUser.objects.get(pk=user_id)
+                new_user_id = request.data.get('swap_with_id')
+                new_user = CustomUser.objects.get(pk=new_user_id, role='CREW')
+                
+                complaint.assigned_users.remove(old_user)
+                complaint.assigned_users.add(new_user)
+                complaint.save()
+                send_notification(new_user, "Task Swapped", f"You've been assigned task #{complaint.id} (swapped)")
+            
+            return Response(ComplaintSerializer(complaint, context={'request': request}).data)
+        except (Complaint.DoesNotExist, CustomUser.DoesNotExist):
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)

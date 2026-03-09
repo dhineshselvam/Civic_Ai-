@@ -1,7 +1,7 @@
 from django.db import models
 from django.utils import timezone
 
-from .priority_engine import calculate_priority_score
+from services.priority_engine import calculate_priority_score
 
 
 class Complaint(models.Model):
@@ -37,7 +37,8 @@ class Complaint(models.Model):
     # Task 1.2 Additions
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Reported')
     user = models.ForeignKey('users.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='complaints')
-    assigned_crew = models.ForeignKey('users.CustomUser', on_delete=models.SET_NULL, null=True, blank=True, related_name='assigned_tasks')
+    assigned_teams = models.ManyToManyField('users.Team', blank=True, related_name='assigned_tasks')
+    assigned_users = models.ManyToManyField('users.CustomUser', blank=True, related_name='assigned_individual_tasks')
     
     rating = models.IntegerField(null=True, blank=True)
     feedback = models.TextField(null=True, blank=True)

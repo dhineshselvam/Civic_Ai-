@@ -11,16 +11,39 @@ class CrewManagementScreen extends StatefulWidget {
 
 class _CrewManagementScreenState extends State<CrewManagementScreen> {
   final _api = ApiService();
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _crewMembers = [];
+  List<Map<String, dynamic>> _teams = [];
 
-  // Department options matching backend
   static const _departments = [
     ('ROAD', 'Road Maintenance'),
     ('SANITATION', 'Sanitation & Waste'),
     ('ELECTRICAL', 'Electrical & Lighting'),
-    ('WATER', 'Water & Drainage'),
-    ('PARKS', 'Parks & Public Spaces'),
-    ('GENERAL', 'General Maintenance'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    setState(() => _isLoading = true);
+    try {
+      final members = await _api.listCrewMembers();
+      final teams = await _api.listTeams();
+      setState(() {
+        _crewMembers = members;
+        _teams = teams;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error loading data: $e')));
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +53,12 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
         title: const Text('CREW MANAGEMENT', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh_rounded),
+            onPressed: _loadData,
+          )
+        ],
       ),
       body: Container(
         width: double.infinity,
@@ -42,27 +71,118 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('MANAGEMENT', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                const SizedBox(height: 20),
-                _buildActionCard(
-                  'Onboard New Member',
-                  'Register a new specialized field crew member',
-                  Icons.person_add_rounded,
-                  Colors.tealAccent,
-                  _showRegisterDialog,
+          child: _isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
+              : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('MANAGEMENT', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                      const SizedBox(height: 20),
+                      _buildActionCard(
+                        'Onboard New Member',
+                        'Register a new specialized field crew member',
+                        Icons.person_add_rounded,
+                        Colors.tealAccent,
+                        _showRegisterDialog,
+                      ),
+                      const SizedBox(height: 32),
+                      const Text('ACTIVE STAFF LIST', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                      const SizedBox(height: 16),
+                      if (_crewMembers.isEmpty)
+                        const Center(child: Text('No crew members registered yet.', style: TextStyle(color: Colors.white38))),
+                      ..._crewMembers.map((m) => _buildCrewMemberTile(m)),
+                      const SizedBox(height: 32),
+                      const Text('DEPARTMENTS', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
+                      const SizedBox(height: 16),
+                      ..._departments.map((d) => _buildDepartmentBadge(d.$1, d.$2)),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 32),
-                const Text('DEPARTMENTS', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2)),
-                const SizedBox(height: 16),
-                ..._departments.map((d) => _buildDepartmentBadge(d.$1, d.$2)),
-              ],
-            ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCrewMemberTile(Map<String, dynamic> member) {
+    final teamName = member['team_name'] ?? 'No Team Assigned';
+    final dept = member['department'] ?? 'General';
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white12),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: CircleAvatar(
+          backgroundColor: Colors.indigo.shade400,
+          child: Text(member['username']?[0]?.toUpperCase() ?? '?', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+        title: Text(member['username'] ?? 'Unknown', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        subtitle: Text('$dept • $teamName', style: const TextStyle(color: Colors.white54, fontSize: 12)),
+        trailing: TextButton.icon(
+          onPressed: () => _showTransferDialog(member),
+          icon: const Icon(Icons.swap_horiz_rounded, size: 16, color: Colors.tealAccent),
+          label: const Text('TRANSFER', style: TextStyle(color: Colors.tealAccent, fontSize: 11)),
+          style: TextButton.styleFrom(
+            backgroundColor: Colors.tealAccent.withOpacity(0.1),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showTransferDialog(Map<String, dynamic> member) {
+    final filteredTeams = _teams.where((t) => t['department'] == member['department']).toList();
+    int? selectedTeamId = member['team'];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          backgroundColor: Colors.indigo.shade900,
+          title: Text('Transfer ${member['username']}', style: const TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Select a new team within the same department:', style: TextStyle(color: Colors.white60, fontSize: 12)),
+              const SizedBox(height: 20),
+              if (filteredTeams.isEmpty)
+                const Text('No other teams found in this department.', style: TextStyle(color: Colors.redAccent))
+              else
+                DropdownButtonFormField<int>(
+                  value: filteredTeams.any((t) => t['id'] == selectedTeamId) ? selectedTeamId : null,
+                  dropdownColor: Colors.indigo.shade900,
+                  style: const TextStyle(color: Colors.white),
+                  items: filteredTeams.map((t) => DropdownMenuItem<int>(
+                    value: t['id'],
+                    child: Text(t['name']),
+                  )).toList(),
+                  onChanged: (v) => setDlgState(() => selectedTeamId = v),
+                  decoration: const InputDecoration(labelText: 'Target Team', labelStyle: TextStyle(color: Colors.white54)),
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: selectedTeamId == null ? null : () async {
+                try {
+                  await _api.updateMemberTeam(selectedTeamId!, member['id'], 'add');
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  _loadData();
+                } catch (e) {
+                  if (ctx.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+                }
+              },
+              child: const Text('UPDATE ASSIGNMENT'),
+            ),
+          ],
         ),
       ),
     );
@@ -73,9 +193,6 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
       'ROAD': Colors.orangeAccent,
       'SANITATION': Colors.greenAccent,
       'ELECTRICAL': Colors.yellowAccent,
-      'WATER': Colors.blueAccent,
-      'PARKS': Colors.tealAccent,
-      'GENERAL': Colors.purpleAccent,
     };
     final color = colors[code] ?? Colors.white;
     return Container(
@@ -222,6 +339,7 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
                     );
                     if (mounted) {
                       Navigator.pop(context);
+                      _loadData(); // Refresh list after registration
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('✅ Crew member registered successfully!'), backgroundColor: Colors.teal),
                       );

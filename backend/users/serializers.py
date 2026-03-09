@@ -1,5 +1,10 @@
 from rest_framework import serializers
-from .models import CustomUser, Notification
+from .models import CustomUser, Notification, Team
+
+class TeamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ['id', 'name', 'department', 'is_active', 'created_at']
 
 class UserSerializer(serializers.ModelSerializer):
     credibility_label = serializers.CharField(read_only=True)
@@ -17,6 +22,7 @@ class UserSerializer(serializers.ModelSerializer):
             'credibility_label',
             'reports_count',
             'resolved_count',
+            'team',
         ]
         read_only_fields = ['id', 'trust_score', 'credibility_label', 'reports_count', 'resolved_count']
 
