@@ -355,6 +355,7 @@ class HighPriorityView(APIView):
         return Response(ComplaintSerializer(issues, many=True, context={'request': request}).data)
 
 
+
 class AutoAssignView(APIView):
     """
     POST /api/complaints/auto-assign/
@@ -481,7 +482,6 @@ class CrewListView(APIView):
             crew = crew.filter(department=department)
         
         return Response(UserSerializer(crew, many=True).data)
-
 
 class ManageAssignmentView(APIView):
     """

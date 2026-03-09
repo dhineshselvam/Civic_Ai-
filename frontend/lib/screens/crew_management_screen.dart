@@ -15,10 +15,14 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
   List<Map<String, dynamic>> _crewMembers = [];
   List<Map<String, dynamic>> _teams = [];
 
+  // Department options matching backend
   static const _departments = [
     ('ROAD', 'Road Maintenance'),
     ('SANITATION', 'Sanitation & Waste'),
     ('ELECTRICAL', 'Electrical & Lighting'),
+    ('WATER', 'Water & Drainage'),
+    ('PARKS', 'Parks & Public Spaces'),
+    ('GENERAL', 'General Maintenance'),
   ];
 
   @override
@@ -193,6 +197,9 @@ class _CrewManagementScreenState extends State<CrewManagementScreen> {
       'ROAD': Colors.orangeAccent,
       'SANITATION': Colors.greenAccent,
       'ELECTRICAL': Colors.yellowAccent,
+      'WATER': Colors.blueAccent,
+      'PARKS': Colors.tealAccent,
+      'GENERAL': Colors.purpleAccent,
     };
     final color = colors[code] ?? Colors.white;
     return Container(

@@ -65,5 +65,4 @@ db.sqlite3
 backend/clip_model/backend/clip_model/model.safetensors
 
 backend/clip_model/model.safetensors
-
 backend/clip_model/model.safetensors

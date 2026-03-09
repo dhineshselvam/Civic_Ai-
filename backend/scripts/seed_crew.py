@@ -43,7 +43,7 @@ def seed():
                     )
                     print(f"  Created member: {username}")
                 except Exception as e:
-                    print(f"  Skipped {username} (already exists or error)")
+                    print(f"  Error creating {username}: {e}")
             else:
                 print(f"  Member already exists: {username}")
 

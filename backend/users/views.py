@@ -198,4 +198,3 @@ class CrewListView(APIView):
         crew = CustomUser.objects.filter(role='CREW').select_related('team')
         serializer = UserSerializer(crew, many=True)
         return Response(serializer.data)
-

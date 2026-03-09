@@ -9,6 +9,9 @@ class Team(models.Model):
         ('ROAD', 'Road Maintenance'),
         ('SANITATION', 'Sanitation & Waste'),
         ('ELECTRICAL', 'Electrical & Lighting'),
+        ('WATER', 'Water & Drainage'),
+        ('PARKS', 'Parks & Public Spaces'),
+        ('GENERAL', 'General Maintenance'),
     )
     name = models.CharField(max_length=50, unique=True)
     department = models.CharField(max_length=20, choices=DEPARTMENT_CHOICES, null=True, blank=True)
