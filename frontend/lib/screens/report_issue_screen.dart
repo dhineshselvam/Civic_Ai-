@@ -303,8 +303,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
@@ -322,147 +320,211 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
           ),
         ),
         child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Step 1: Visual Evidence
-                  _buildSectionHeader('Visual Evidence', Icons.camera_enhance),
-                  const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _loading ? null : _pickImage,
-                    child: Container(
-                      height: 220,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(30),
-                        border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
-                      ),
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          if (_image != null)
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(30),
-                              child: Image.memory(_image, width: double.infinity, height: double.infinity, fit: BoxFit.cover),
-                            )
-                          else
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.tealAccent.withOpacity(0.1),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.tealAccent),
-                                ),
-                                const SizedBox(height: 16),
-                                const Text('TAP TO CAPTURE EVIDENCE', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                              ],
-                            ),
-                          // Viewport Markers (Decor)
-                          Positioned(top: 20, left: 20, child: _viewportMarker(0)),
-                          Positioned(top: 20, right: 20, child: _viewportMarker(1)),
-                          Positioned(bottom: 20, left: 20, child: _viewportMarker(2)),
-                          Positioned(bottom: 20, right: 20, child: _viewportMarker(3)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Step 2: Location
-                  _buildSectionHeader('Pinpoint Location', Icons.location_on),
-                  const SizedBox(height: 12),
-                  Stack(
-                    children: [
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: Container(
-                          height: 280, // Slightly taller for better visibility
-                          decoration: BoxDecoration(
-                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
-                          ),
-                          child: MapPicker(
-                            selectedLat: _latitude,
-                            selectedLng: _longitude,
-                            onLocationSelected: _onLocationSelected,
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 12,
-                        right: 12,
-                        child: FloatingActionButton.small(
-                          onPressed: _isLocationLoading ? null : _getCurrentLocation,
-                          backgroundColor: Colors.indigo,
-                          child: _isLocationLoading 
-                             ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                             : const Icon(Icons.my_location, color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Editable Address Field
-                  _buildTextField(
-                    controller: _addressController,
-                    label: 'Captured Address (Verify & Edit)',
-                    icon: Icons.map,
-                    hint: 'Fetching address...',
-                    maxLines: 2,
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Step 3: Details
-                  _buildSectionHeader('Issue Details', Icons.description),
-                  const SizedBox(height: 12),
-                  _buildTextField(
-                    controller: _descriptionController,
-                    label: 'Describe what\'s wrong',
-                    icon: Icons.edit_note,
-                    hint: 'Describe the situation...',
-                    maxLines: 4,
-                    validator: (v) => (v == null || v.isEmpty) ? 'Description required' : null,
-                  ),
-                  const SizedBox(height: 40),
-
-                  // Messages
-                  if (_error != null) _buildMessage(Colors.redAccent, _error!),
-                  if (_successMessage != null) ...[
-                    _buildMessage(Colors.tealAccent.shade400, _successMessage!),
-                    const SizedBox(height: 8),
-                  ],
-
-                  // Submit
-                  SizedBox(
-                    height: 64,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.teal.shade600,
-                        foregroundColor: Colors.white,
-                        elevation: 8,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                      ),
-                      onPressed: _loading ? null : _submit,
-                      child: _loading
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : const Text('SUBMIT REPORT', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                ],
-              ),
-            ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth >= 700) {
+                return _buildDesktopLayout();
+              }
+              return _buildMobileLayout();
+            },
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Mobile Map Section (Top)
+            _buildSectionHeader('Pinpoint Location', Icons.location_on),
+            const SizedBox(height: 12),
+            _buildMapWidget(height: 280),
+            const SizedBox(height: 32),
+
+            // Mobile Form Section (Bottom)
+            _buildFormWidgets(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Padding(
+      padding: const EdgeInsets.all(24.0),
+      child: Form(
+        key: _formKey,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left Side: Map
+            Expanded(
+              flex: 5,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _buildSectionHeader('Pinpoint Location', Icons.location_on),
+                  const SizedBox(height: 12),
+                  Expanded(child: _buildMapWidget()),
+                ],
+              ),
+            ),
+            const SizedBox(width: 32),
+            // Right Side: Report Form
+            Expanded(
+              flex: 4,
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _buildFormWidgets(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMapWidget({double? height}) {
+    return Stack(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: Container(
+            height: height, // null height allows Expanded to fill available space on desktop
+            decoration: BoxDecoration(
+              border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+            ),
+            child: MapPicker(
+              selectedLat: _latitude,
+              selectedLng: _longitude,
+              onLocationSelected: _onLocationSelected,
+            ),
+          ),
+        ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: FloatingActionButton.small(
+            onPressed: _isLocationLoading ? null : _getCurrentLocation,
+            backgroundColor: Colors.indigo,
+            child: _isLocationLoading
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.my_location, color: Colors.white),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFormWidgets() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // Upload Image
+        _buildSectionHeader('Visual Evidence', Icons.camera_enhance),
+        const SizedBox(height: 16),
+        GestureDetector(
+          onTap: _loading ? null : _pickImage,
+          child: Container(
+            height: 220,
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+            ),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (_image != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(30),
+                    child: Image.memory(_image, width: double.infinity, height: double.infinity, fit: BoxFit.contain),
+                  )
+                else
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.tealAccent.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.tealAccent),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text('TAP TO CAPTURE EVIDENCE', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                    ],
+                  ),
+                // Viewport Markers (Decor)
+                Positioned(top: 20, left: 20, child: _viewportMarker(0)),
+                Positioned(top: 20, right: 20, child: _viewportMarker(1)),
+                Positioned(bottom: 20, left: 20, child: _viewportMarker(2)),
+                Positioned(bottom: 20, right: 20, child: _viewportMarker(3)),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 32),
+
+        // Description
+        _buildSectionHeader('Issue Details', Icons.description),
+        const SizedBox(height: 12),
+        _buildTextField(
+          controller: _descriptionController,
+          label: 'Describe what\'s wrong',
+          icon: Icons.edit_note,
+          hint: 'Describe the situation...',
+          maxLines: 4,
+          validator: (v) => (v == null || v.isEmpty) ? 'Description required' : null,
+        ),
+        const SizedBox(height: 16),
+
+        // Address Field
+        _buildTextField(
+          controller: _addressController,
+          label: 'Captured Address (Verify & Edit)',
+          icon: Icons.map,
+          hint: 'Fetching address...',
+          maxLines: 2,
+        ),
+        const SizedBox(height: 40),
+
+        // Messages
+        if (_error != null) _buildMessage(Colors.redAccent, _error!),
+        if (_successMessage != null) ...[
+          _buildMessage(Colors.tealAccent.shade400, _successMessage!),
+          const SizedBox(height: 8),
+        ],
+
+        // Submit
+        SizedBox(
+          height: 64,
+          child: ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade600,
+              foregroundColor: Colors.white,
+              elevation: 8,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
+            onPressed: _loading ? null : _submit,
+            child: _loading
+                ? const CircularProgressIndicator(color: Colors.white)
+                : const Text('SUBMIT REPORT', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+          ),
+        ),
+        const SizedBox(height: 40),
+      ],
     );
   }
 

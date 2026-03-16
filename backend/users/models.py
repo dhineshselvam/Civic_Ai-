@@ -30,11 +30,14 @@ class CustomUser(AbstractUser):
         ('CITIZEN', 'Citizen'),
         ('CREW', 'Field Crew'),
         ('ADMIN', 'System Admin'),
+        ('PWD', 'PWD Department'),
+        ('SANITATION', 'Sanitation Department'),
+        ('ELECTRICITY', 'Electricity Department'),
     )
 
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=15, null=True, blank=True)
-    role = models.CharField(max_length=10, choices=ROLE_CHOICES, default='CITIZEN')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='CITIZEN')
     department = models.CharField(max_length=20, choices=Team.DEPARTMENT_CHOICES, null=True, blank=True)
     team = models.ForeignKey(Team, on_delete=models.SET_NULL, null=True, blank=True, related_name='members')
     trust_score = models.IntegerField(default=50)  # Neutral score to start

@@ -17,16 +17,19 @@ def get_target_department(category: str) -> str:
         return 'ROAD'
     return 'GENERAL'
 
-def auto_assign_teams() -> int:
+def auto_assign_teams(department=None) -> int:
     """
     Assign unassigned complaints to deployment-ready teams using LP optimization.
     Returns the number of complaints newly assigned.
     """
     # 1. Gather all unassigned complaints
-    unassigned = list(Complaint.objects.filter(
+    query = Complaint.objects.filter(
         status__in=['Reported', 'Verified'],
         assigned_teams__isnull=True
-    ))
+    )
+    if department:
+        query = query.filter(department=department)
+    unassigned = list(query)
     if not unassigned:
         return 0
 

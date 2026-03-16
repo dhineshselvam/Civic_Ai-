@@ -15,26 +15,15 @@ class PriorityContext:
     is_resolved: bool
     upvote_count: int = 1
     trust_score: Optional[int] = None
+    sensitive_location_count: int = 0
+
+
+BASE_PRIORITY_SCORE = 35
 
 
 def _base_from_category(category: str) -> int:
-    """Map fine-grained category text into Road / Garbage / Streetlight buckets."""
-    text = (category or "").lower()
-
-    # Road damage ecosystem
-    if any(k in text for k in ["pothole", "road", "street", "pavement", "bridge"]):
-        return 40  # Road
-
-    # Waste / sanitation
-    if any(k in text for k in ["garbage", "waste", "trash", "bin", "dump", "sewage", "drain"]):
-        return 25  # Garbage
-
-    # Lighting / electrical
-    if any(k in text for k in ["light", "lamp", "streetlight", "bulb", "electric", "power"]):
-        return 20  # Streetlight
-
-    # Everything else – neutral but still visible in queue
-    return 20
+    """Return the neutral base priority score."""
+    return BASE_PRIORITY_SCORE
 
 
 def _danger_bonus(description: str) -> int:
@@ -62,7 +51,7 @@ def _danger_bonus(description: str) -> int:
     if matches == 0:
         return 0
     # Base +15 for any match, +5 for each additional match (cap at +30)
-    return min(15 + (matches - 1) * 5, 30)
+    return min(matches * 5, 15)
 
 
 def _night_bonus(ts: datetime) -> int:
@@ -97,7 +86,7 @@ def _credibility_bonus(trust_score: Optional[int]) -> int:
         return 0
     # Adjusted severity scaling for credibility impact
     if trust_score >= 80:
-        return 15   # Highly Trusted: bigger bump to ensure their claims jump the queue
+        return 10   # Highly Trusted: bigger bump to ensure their claims jump the queue
     if trust_score >= 50:
         return 5    # Trusted: slight bump
     if trust_score >= 30:
@@ -105,6 +94,20 @@ def _credibility_bonus(trust_score: Optional[int]) -> int:
     if trust_score >= 15:
         return -10  # Low Trust: penalty for historical inaccuracies
     return -20      # Unreliable: severe penalty for spammers
+
+
+def _sensitive_location_bonus(count: int) -> int:
+    """
+    Sensitive Location Bonus (+10 per location, max +30)
+
+    If the reported issue occurs within 500 metres of schools, hospitals,
+    or universities, the system increases the priority score (+10 each) to ensure
+    faster response in areas where public safety is more critical.
+    The bonus is capped at +30.
+    """
+    if not count or count < 0:
+        return 0
+    return min(count * 10, 30)
 
 
 def _label_from_score(score: int) -> str:
@@ -125,17 +128,21 @@ def calculate_priority_score(
     is_resolved: bool,
     upvote_count: int = 1,
     trust_score: Optional[int] = None,
+    sensitive_location_count: int = 0,
 ) -> Tuple[int, str]:
     """
     Priority Engine – single public entry point.
 
-    Combines:
-    - Category base (Road/Garbage/Streetlight → 40/25/20)
-    - Description danger keywords
-    - Night-time bonus
-    - Duplicate upvote bonus (+3 per upvote beyond the first)
-    - Age bonus (+2 per unresolved day, capped)
-    - Credibility bonus from trust score buckets
+    Combines 7 factors:
+    1. Category base score   (Neutral base score of 35)
+    2. Description danger keywords (+15–30)
+    3. Night-time bonus (+5 between 8 pm–5 am)
+    4. Duplicate / upvote bonus (+3 per extra upvote)
+    5. Age bonus (+2 per unresolved day, capped at +30)
+    6. Credibility bonus from reporter trust score buckets (-20 to +15)
+    7. Sensitive Location Bonus (+10 per detected location within 500m, max +30)
+
+    Final score is clamped to [0, 100].
     """
     base = _base_from_category(category)
     score = base
@@ -145,6 +152,7 @@ def calculate_priority_score(
     score += _upvote_bonus(upvote_count)
     score += _age_bonus(timestamp, is_resolved)
     score += _credibility_bonus(trust_score)
+    score += _sensitive_location_bonus(sensitive_location_count)
 
     score = max(0, min(int(score), 100))
     label = _label_from_score(score)

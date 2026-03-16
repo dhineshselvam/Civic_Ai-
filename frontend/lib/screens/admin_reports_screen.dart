@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 
 class AdminReportsScreen extends StatefulWidget {
-  const AdminReportsScreen({super.key});
+  const AdminReportsScreen({super.key, this.title = 'ALL REPORTS'});
+  final String title;
 
   @override
   State<AdminReportsScreen> createState() => _AdminReportsScreenState();
@@ -12,6 +13,7 @@ class AdminReportsScreen extends StatefulWidget {
 class _AdminReportsScreenState extends State<AdminReportsScreen> {
   final _api = ApiService();
   bool _loading = true;
+  bool _showAllSubmissions = false;
   List<Complaint> _reports = [];
 
   @override
@@ -23,7 +25,7 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
   Future<void> _loadData() async {
     setState(() => _loading = true);
     try {
-      final reports = await _api.getComplaints();
+      final reports = await _api.getComplaints(allSubmissions: _showAllSubmissions);
       if (mounted) setState(() => _reports = reports);
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -37,10 +39,23 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('ALL REPORTS', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
+          IconButton(
+            onPressed: () {
+              setState(() {
+                _showAllSubmissions = !_showAllSubmissions;
+              });
+              _loadData();
+            },
+            icon: Icon(
+              _showAllSubmissions ? Icons.filter_list_off_rounded : Icons.filter_list_rounded,
+              color: _showAllSubmissions ? Colors.amberAccent : Colors.white
+            ),
+            tooltip: _showAllSubmissions ? 'Show Unique Issues' : 'Show All Submissions',
+          ),
           IconButton(onPressed: _loadData, icon: const Icon(Icons.refresh_rounded, color: Colors.white)),
         ],
       ),
@@ -69,10 +84,16 @@ class _AdminReportsScreenState extends State<AdminReportsScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       itemCount: _reports.length,
-                      itemBuilder: (context, idx) => _AdminReportCard(
-                        report: _reports[idx],
-                        onRefresh: _loadData,
-                      ),
+                      itemBuilder: (context, idx) {
+                        final report = _reports[idx];
+                        if (_showAllSubmissions) {
+                          return _UserReportCard(report: report, onRefresh: _loadData);
+                        }
+                        return _AdminReportCard(
+                          report: report,
+                          onRefresh: _loadData,
+                        );
+                      },
                     ),
         ),
       ),
@@ -126,9 +147,23 @@ class _AdminReportCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          report.predicted_category.toUpperCase(),
-                          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2),
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                report.predicted_category.toUpperCase(),
+                                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1.2),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (report.predicted_category == 'Spam')
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                                child: const Text('SPAM REPORT', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ),
+                          ],
                         ),
                       ),
                       Container(
@@ -240,6 +275,29 @@ class _AdminReportCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                
+                // Nested Reports List (Duplicate & Original Submissions)
+                // Nested Reports List Button
+                if ((report.upvoteCount ?? 1) > 1 || (report.reports != null && report.reports!.isNotEmpty)) ...[
+                  const Divider(color: Colors.white10, height: 1),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.tealAccent,
+                          alignment: Alignment.centerLeft,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                        ),
+                        icon: const Icon(Icons.list_alt_rounded, size: 16),
+                        label: const Text('SHOW ALL REPORTS', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+                        onPressed: () => _showAllReportsDialog(context, report),
+                      ),
+                    ),
+                  ),
+                ],
+                
                 // Actions
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -568,6 +626,252 @@ class _AdminReportCard extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showAllReportsDialog(BuildContext context, Complaint report) {
+    showDialog(
+      context: context,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+        child: AlertDialog(
+          backgroundColor: Colors.indigo.shade900.withOpacity(0.95),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24), side: const BorderSide(color: Colors.white24)),
+          title: const Text('All Submissions', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 400,
+            child: FutureBuilder<Complaint>(
+              future: _api.getComplaint(report.id),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator(color: Colors.tealAccent));
+                }
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
+                }
+
+                final detailedComplaint = snapshot.data;
+                final reports = detailedComplaint?.reports ?? [];
+
+                if (reports.isEmpty) {
+                  return const Center(child: Text('No individual reports found.', style: TextStyle(color: Colors.white54)));
+                }
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: reports.length,
+                  itemBuilder: (context, index) {
+                    final sub = reports[index];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white10),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (sub.imageUrl != null)
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.network(sub.imageUrl!, width: 40, height: 40, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(width: 40, height: 40, color: Colors.white10,
+                                  child: const Icon(Icons.broken_image_outlined, color: Colors.white24, size: 20)),
+                              ),
+                            )
+                          else
+                            Container(width: 40, height: 40, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
+                              child: const Icon(Icons.image_outlined, color: Colors.white24, size: 20)),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      '@${sub.username ?? 'Citizen'}',
+                                      style: const TextStyle(color: Colors.tealAccent, fontSize: 12, fontWeight: FontWeight.bold),
+                                    ),
+                                    Text(
+                                      "${sub.createdAt.toLocal().toString().split(' ')[0]}",
+                                      style: const TextStyle(color: Colors.white30, fontSize: 10)
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  sub.description,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 12, height: 1.3),
+                                ),
+                                if (sub.address != null && sub.address!.isNotEmpty) ...[
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.location_on_rounded, color: Colors.white24, size: 10),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          sub.address!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ]
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx), 
+              child: const Text('Close', style: TextStyle(color: Colors.white54))
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UserReportCard extends StatelessWidget {
+  const _UserReportCard({required this.report, required this.onRefresh});
+  final Complaint report;
+  final VoidCallback onRefresh;
+
+  Color _statusColor(String s) {
+    switch (s) {
+      case 'Reported': return Colors.blueAccent;
+      case 'Verified': return Colors.cyanAccent;
+      case 'Assigned': return Colors.purpleAccent;
+      case 'In-Progress': return Colors.orangeAccent;
+      case 'Resolved': return Colors.tealAccent;
+      default: return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor(report.status);
+    
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.3)),
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (report.imageUrl != null)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.network(report.imageUrl!, width: 60, height: 60, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => Container(width: 60, height: 60, color: Colors.white10,
+                        child: const Icon(Icons.broken_image_outlined, color: Colors.white24)),
+                    ),
+                  )
+                else
+                  Container(width: 60, height: 60, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
+                    child: const Icon(Icons.image_outlined, color: Colors.white24)),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                report.predicted_category.toUpperCase(),
+                                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5),
+                              ),
+                              if (report.predicted_category == 'Spam')
+                                Container(
+                                  margin: const EdgeInsets.only(left: 6),
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('SPAM', style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(10)),
+                            child: Text(report.status.toUpperCase(), style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(report.description, maxLines: 2, overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.3)),
+                      const SizedBox(height: 8),
+                      if (report.address != null && report.address!.isNotEmpty)
+                        Row(
+                          children: [
+                            const Icon(Icons.location_on_rounded, color: Colors.white30, size: 10),
+                            const SizedBox(width: 4),
+                            Expanded(child: Text(report.address!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10))),
+                          ],
+                        ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(
+                            report.isOriginal ? Icons.fiber_new_rounded : Icons.content_copy_rounded, 
+                            color: report.isOriginal ? Colors.amberAccent : Colors.white54, 
+                            size: 12
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            report.isOriginal ? "Original Reporter" : "Duplicate Reporter",
+                            style: TextStyle(
+                              color: report.isOriginal ? Colors.amberAccent : Colors.white54,
+                              fontSize: 10,
+                              fontWeight: report.isOriginal ? FontWeight.bold : FontWeight.normal
+                            )
+                          ),
+                          const Spacer(),
+                          Text(
+                            "${report.createdAt.toLocal().toString().split(' ')[0]} ${report.createdAt.toLocal().toString().split(' ')[1].substring(0, 5)}",
+                            style: const TextStyle(color: Colors.white54, fontSize: 9),
+                          )
+                        ],
+                      )
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

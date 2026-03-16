@@ -10,6 +10,7 @@ CATEGORIES = [
     "Pothole",
     "Streetlight Issue",
     "Road Damage",
+    "Irrelevant image not related to civic issues",
 ]
 
 # Default local path is set in _get_model_path to backend/clip_model
@@ -54,7 +55,7 @@ def _get_model_path():
 def classify_issue(image_path: str, text_description: str) -> str:
     """
     Classify a civic issue from image path and text description using local CLIP.
-    Returns one of: Garbage, Pothole, Streetlight Issue, Road Damage.
+    Returns one of: Garbage, Pothole, Streetlight Issue, Road Damage, or Spam.
     """
     model_path = _get_model_path()
     if not os.path.exists(model_path):
@@ -96,4 +97,10 @@ def classify_issue(image_path: str, text_description: str) -> str:
         probs = logits_per_image.softmax(dim=1).squeeze(0)
 
     idx = probs.argmax().item()
-    return CATEGORIES[idx]
+    confidence = probs[idx].item()
+    predicted_category = CATEGORIES[idx]
+
+    if predicted_category == "Irrelevant image not related to civic issues" or confidence < 0.40:
+        return "Spam"
+
+    return predicted_category

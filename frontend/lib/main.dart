@@ -91,18 +91,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   List<Widget> _getScreens() {
-    if (_role == 'ADMIN') {
+    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY' || _role == 'CREW') {
+      // Determine the page title for the reports screen
+      final reportsTitle = _role == 'ADMIN' ? 'ALL REPORTS'
+          : _role == 'PWD' ? 'PWD REPORTS'
+          : _role == 'SANITATION' ? 'SANITATION REPORTS'
+          : _role == 'ELECTRICITY' ? 'ELECTRICITY REPORTS'
+          : 'DEPT REPORTS';
       return [
         const AdminDashboardScreen(),
-        AdminReportsScreen(),
+        AdminReportsScreen(title: reportsTitle),
         CrewManagementScreen(),
         CityAnalyticsScreen(),
-        ProfileScreen(onLogout: _logout),
-      ];
-    } else if (_role == 'CREW') {
-      return [
-        const CrewDashboardScreen(),
-        const NotificationInboxScreen(),
         ProfileScreen(onLogout: _logout),
       ];
     } else {
@@ -116,18 +116,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   List<BottomNavigationBarItem> _getNavItems() {
-    if (_role == 'ADMIN') {
+    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY' || _role == 'CREW') {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Status'),
         BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded), label: 'Reports'),
         BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Crew'),
         BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Analytics'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Admin'),
-      ];
-    } else if (_role == 'CREW') {
-      return const [
-        BottomNavigationBarItem(icon: Icon(Icons.assignment_rounded), label: 'Tasks'),
-        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded), label: 'Alerts'),
         BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
       ];
     } else {

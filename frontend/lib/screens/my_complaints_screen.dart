@@ -250,6 +250,7 @@ class _PremiumComplaintCard extends StatelessWidget {
                                         ),
                                       ],
                                     ),
+                                    // Removed duplicate indicator per request
                                   ],
                                 ),
                               ),

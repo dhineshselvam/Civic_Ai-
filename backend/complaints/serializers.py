@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Complaint
+from .models import Complaint, UserReport
 
 
 class ComplaintSerializer(serializers.ModelSerializer):
@@ -15,7 +15,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
             'id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
             'predicted_category', 'priority_score', 'priority_label', 'address', 'upvote_count',
             'status', 'assigned_teams', 'assigned_users', 'rating', 'feedback',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'department'
         ]
 
     def get_assigned_users(self, obj):
@@ -38,6 +38,56 @@ class ComplaintSerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return None
+
+class UserReportSerializer(serializers.ModelSerializer):
+    """
+    Serializer for the UserReport layer.
+    Exposes the same shape as ComplaintSerializer so the frontend doesn't break,
+    but draws core issue details from the parent Complaint.
+    """
+    image_url = serializers.SerializerMethodField()
+    username = serializers.CharField(source='user.username', read_only=True)
+    predicted_category = serializers.CharField(source='complaint.predicted_category', read_only=True)
+    priority_score = serializers.IntegerField(source='complaint.priority_score', read_only=True)
+    priority_label = serializers.CharField(source='complaint.priority_label', read_only=True)
+    status = serializers.CharField(source='complaint.status', read_only=True)
+    upvote_count = serializers.IntegerField(source='complaint.upvote_count', read_only=True)
+    assigned_teams = serializers.SerializerMethodField()
+    assigned_users = serializers.SerializerMethodField()
+    rating = serializers.IntegerField(source='complaint.rating', read_only=True)
+    feedback = serializers.CharField(source='complaint.feedback', read_only=True)
+
+    class Meta:
+        model = UserReport
+        # Expose the same fields as ComplaintSerializer for seamless frontend integration
+        # Expose the same fields as ComplaintSerializer for seamless frontend integration
+        fields = [
+            'id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
+            'predicted_category', 'priority_score', 'priority_label', 'address', 'upvote_count',
+            'status', 'assigned_teams', 'assigned_users', 'rating', 'feedback',
+            'created_at', 'is_original', 'username'
+        ]
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+    def get_assigned_users(self, obj):
+        from users.serializers import UserSerializer
+        return UserSerializer(obj.complaint.assigned_users.all(), many=True).data
+
+    def get_assigned_teams(self, obj):
+        teams_data = []
+        for team in obj.complaint.assigned_teams.prefetch_related('members').all():
+            teams_data.append({
+                'id': team.id,
+                'name': team.name,
+                'department': team.department,
+                'members': [m.username for m in team.members.all()]
+            })
+        return teams_data
 
 
 class ComplaintCreateSerializer(serializers.ModelSerializer):

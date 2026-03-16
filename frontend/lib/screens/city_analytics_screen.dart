@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/api_service.dart';
 
 class CityAnalyticsScreen extends StatefulWidget {
@@ -91,6 +93,7 @@ class _CityAnalyticsScreenState extends State<CityAnalyticsScreen> {
     final statusList = (d['status_breakdown'] as List<dynamic>?) ?? [];
     final trend = (d['daily_trend'] as List<dynamic>?) ?? [];
     final crewLoad = (d['crew_workload'] as List<dynamic>?) ?? [];
+    final mapData = (d['map_data'] as List<dynamic>?) ?? [];
     final avgDays = d['avg_resolution_days'];
 
     return RefreshIndicator(
@@ -110,39 +113,67 @@ class _CityAnalyticsScreenState extends State<CityAnalyticsScreen> {
           ),
           const SizedBox(height: 28),
 
-          // ── PREDICTIVE HOTSPOT MAP ──────────────────────────────────────────
-          _sectionHeader('PREDICTIVE HOTSPOT MAP', Icons.map_rounded),
+          // ── INTERACTIVE ANALYTICS MAP ───────────────────────────────────────
+          _sectionHeader('LIVE ISSUES MAP', Icons.map_rounded),
           const SizedBox(height: 12),
           _glassCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Generated daily by the forecasting script from real complaints data. Brighter areas indicate higher expected issue volume.',
-                  style: const TextStyle(color: Colors.white60, fontSize: 11, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Image.asset(
-                    'assets/hotspots.png',
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stack) => Container(
-                      height: 180,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(10),
-                        borderRadius: BorderRadius.circular(16),
+            padding: EdgeInsets.zero,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: SizedBox(
+                height: 350,
+                child: mapData.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'No location data available.',
+                          style: TextStyle(color: Colors.white54, fontSize: 12),
+                        ),
+                      )
+                    : FlutterMap(
+                        options: MapOptions(
+                          initialCenter: _getMapCenter(mapData),
+                          initialZoom: 12.0,
+                          interactionOptions: const InteractionOptions(
+                            flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                          ),
+                        ),
+                        children: [
+                          TileLayer(
+                            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                            userAgentPackageName: 'com.example.app',
+                          ),
+                          MarkerLayer(
+                            markers: mapData.map<Marker>((issue) {
+                              final lat = double.tryParse(issue['latitude']?.toString() ?? '0') ?? 0;
+                              final lng = double.tryParse(issue['longitude']?.toString() ?? '0') ?? 0;
+                              final status = issue['status'] as String? ?? 'Reported';
+                              final color = _statusColor(status);
+                              
+                              return Marker(
+                                point: LatLng(lat, lng),
+                                width: 40,
+                                height: 40,
+                                child: GestureDetector(
+                                  onTap: () => _showIssueDetails(issue),
+                                  child: Icon(
+                                    Icons.location_on,
+                                    color: color,
+                                    size: 32,
+                                    shadows: [
+                                      Shadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 2),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ],
                       ),
-                      child: const Text(
-                        'Hotspot map will appear here once generated.',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           const SizedBox(height: 28),
@@ -281,6 +312,88 @@ class _CityAnalyticsScreenState extends State<CityAnalyticsScreen> {
     Colors.tealAccent, Colors.orangeAccent, Colors.purpleAccent,
     Colors.blueAccent, Colors.pinkAccent, Colors.yellowAccent,
   ];
+
+  LatLng _getMapCenter(List<dynamic> data) {
+    if (data.isEmpty) return const LatLng(0, 0);
+    double sumLat = 0;
+    double sumLng = 0;
+    int valid = 0;
+    for (var issue in data) {
+      final lat = double.tryParse(issue['latitude']?.toString() ?? '');
+      final lng = double.tryParse(issue['longitude']?.toString() ?? '');
+      if (lat != null && lng != null) {
+        sumLat += lat;
+        sumLng += lng;
+        valid++;
+      }
+    }
+    if (valid == 0) return const LatLng(0, 0);
+    return LatLng(sumLat / valid, sumLng / valid);
+  }
+
+  void _showIssueDetails(Map<String, dynamic> issue) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) {
+        final color = _statusColor(issue['status'] as String? ?? '');
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade900,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 20)],
+          ),
+          padding: const EdgeInsets.all(24),
+          child: SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(color: Colors.white38, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: color.withOpacity(0.2), borderRadius: BorderRadius.circular(20)),
+                      child: Text(issue['status']?.toString().toUpperCase() ?? 'UNKNOWN', 
+                        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                    const SizedBox(width: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(20)),
+                      child: Text(issue['department']?.toString() ?? 'GENERAL', 
+                        style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(issue['predicted_category']?.toString() ?? 'No Category', 
+                  style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text('Complaint #${issue['id']} • ${issue['created_at']?.toString().split('T').first ?? 'Date unknown'}', 
+                  style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                const SizedBox(height: 16),
+                const Text('DESCRIPTION', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                const SizedBox(height: 4),
+                Text(issue['description']?.toString() ?? 'No description provided.', 
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.5)),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Color _statusColor(String s) {
     switch (s) {

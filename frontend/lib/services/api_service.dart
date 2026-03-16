@@ -221,17 +221,27 @@ class ApiService {
   }
 
   /// Fetch complaints
-  Future<List<Complaint>> getComplaints({String? status, bool? assignedToMe}) async {
+  Future<List<Complaint>> getComplaints({String? status, bool? assignedToMe, bool? allSubmissions}) async {
     String url = '$_baseUrl/api/complaints/';
     final params = <String>[];
     if (status != null) params.add('status=$status');
     if (assignedToMe == true) params.add('assigned_to_me=true');
+    if (allSubmissions == true) params.add('all_submissions=true');
     if (params.isNotEmpty) url += '?${params.join('&')}';
 
     final response = await http.get(Uri.parse(url), headers: _headers);
     if (response.statusCode == 200) {
       final List<dynamic> list = jsonDecode(response.body);
       return list.map((e) => Complaint.fromMap(e)).toList();
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
+
+  /// Fetch a single complaint by ID
+  Future<Complaint> getComplaint(int id) async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/complaints/$id/'), headers: _headers);
+    if (response.statusCode == 200) {
+      return Complaint.fromMap(jsonDecode(response.body));
     }
     throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
@@ -414,6 +424,9 @@ class Complaint {
     this.rating,
     this.feedback,
     this.upvoteCount,
+    this.reports,
+    this.isOriginal = false,
+    this.department,
   });
 
   factory Complaint.fromMap(Map<String, dynamic> map) {
@@ -436,6 +449,9 @@ class Complaint {
       priorityScore: map['priority_score'] as int? ?? 50,
       priorityLabel: map['priority_label'] as String? ?? 'Medium',
       upvoteCount: map['upvote_count'] as int?,
+      reports: (map['reports'] as List<dynamic>?)?.map((e) => UserReport.fromMap(e)).toList(),
+      isOriginal: map['is_original'] as bool? ?? false,
+      department: map['department'] as String?,
     );
   }
 
@@ -457,6 +473,72 @@ class Complaint {
   final int priorityScore;
   final String priorityLabel;
   final int? upvoteCount;
+  final List<UserReport>? reports;
+  final bool isOriginal;
+  final String? department;
+}
+
+/// Represents an individual citizen submission (UserReport layer)
+class UserReport {
+  UserReport({
+    required this.id,
+    required this.image,
+    required this.description,
+    required this.latitude,
+    required this.longitude,
+    required this.status,
+    required this.predictedCategory,
+    required this.createdAt,
+    required this.priorityScore,
+    required this.priorityLabel,
+    required this.isOriginal,
+    this.imageUrl,
+    this.address,
+    this.username,
+    this.upvoteCount,
+    this.assignedTeams,
+    this.assignedUsers,
+  });
+
+  factory UserReport.fromMap(Map<String, dynamic> map) {
+    return UserReport(
+      id: map['id'] as int,
+      image: map['image'] as String? ?? '',
+      imageUrl: map['image_url'] as String?,
+      description: map['description'] as String? ?? '',
+      latitude: (map['latitude'] as num).toDouble(),
+      longitude: (map['longitude'] as num).toDouble(),
+      status: map['status'] as String? ?? 'Reported',
+      predictedCategory: map['predicted_category'] as String? ?? '',
+      createdAt: DateTime.parse(map['created_at'] as String),
+      address: map['address'] as String?,
+      username: map['username'] as String?,
+      isOriginal: map['is_original'] as bool? ?? false,
+      priorityScore: map['priority_score'] as int? ?? 50,
+      priorityLabel: map['priority_label'] as String? ?? 'Medium',
+      upvoteCount: map['upvote_count'] as int?,
+      assignedTeams: (map['assigned_teams'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
+      assignedUsers: (map['assigned_users'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
+    );
+  }
+
+  final int id;
+  final String image;
+  final String? imageUrl;
+  final String description;
+  final double latitude;
+  final double longitude;
+  final String status;
+  final String predictedCategory;
+  final DateTime createdAt;
+  final String? address;
+  final String? username;
+  final bool isOriginal;
+  final int priorityScore;
+  final String priorityLabel;
+  final int? upvoteCount;
+  final List<Map<String, dynamic>>? assignedTeams;
+  final List<Map<String, dynamic>>? assignedUsers;
 }
 
 /// Response from POST /api/report-issue/
