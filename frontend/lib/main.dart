@@ -10,6 +10,7 @@ import 'screens/admin_reports_screen.dart';
 import 'screens/crew_management_screen.dart';
 import 'screens/city_analytics_screen.dart';
 import 'services/api_service.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(const CivicReportingApp());
@@ -23,11 +24,7 @@ class CivicReportingApp extends StatelessWidget {
     return MaterialApp(
       title: 'Civic Ai',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo, brightness: Brightness.dark),
-        useMaterial3: true,
-        fontFamily: 'Outfit', // High-end vibe
-      ),
+      theme: AppTheme.darkTheme,
       home: const MainNavigationScreen(),
     );
   }
@@ -118,18 +115,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   List<BottomNavigationBarItem> _getNavItems() {
     if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY' || _role == 'CREW') {
       return const [
-        BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded), label: 'Status'),
-        BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded), label: 'Reports'),
-        BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded), label: 'Crew'),
-        BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded), label: 'Analytics'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+        BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded, size: 26), label: 'Status'),
+        BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded, size: 26), label: 'Reports'),
+        BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded, size: 26), label: 'Crew'),
+        BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded, size: 26), label: 'Analytics'),
+        BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
       ];
     } else {
       return const [
-        BottomNavigationBarItem(icon: Icon(Icons.add_location_alt_rounded), label: 'Report'),
-        BottomNavigationBarItem(icon: Icon(Icons.history_edu_rounded), label: 'History'),
-        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded), label: 'Inbox'),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: 'Profile'),
+        BottomNavigationBarItem(icon: Icon(Icons.add_location_alt_rounded, size: 26), label: 'Report'),
+        BottomNavigationBarItem(icon: Icon(Icons.history_edu_rounded, size: 26), label: 'History'),
+        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded, size: 26), label: 'Inbox'),
+        BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
       ];
     }
   }
@@ -139,25 +136,32 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     // Show splash while checking saved session
     if (!_initialized) {
       return Scaffold(
-        body: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Colors.indigo.shade900, Colors.teal.shade800, Colors.black],
-            ),
-          ),
-          child: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.location_city_rounded, size: 72, color: Colors.white),
-                SizedBox(height: 24),
-                Text('CIVIC AI', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold, letterSpacing: 4)),
-                SizedBox(height: 40),
-                CircularProgressIndicator(color: Colors.tealAccent, strokeWidth: 2),
-              ],
-            ),
+        backgroundColor: AppTheme.darkBackground,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryBlue.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.location_city_rounded, size: 72, color: AppTheme.accentTeal),
+              ),
+              const SizedBox(height: 32),
+              const Text(
+                'CIVIC AI',
+                style: TextStyle(
+                  color: AppTheme.textHighContrast,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 6,
+                ),
+              ),
+              const SizedBox(height: 48),
+              const CircularProgressIndicator(color: AppTheme.accentTeal, strokeWidth: 3),
+            ],
           ),
         ),
       );
@@ -177,20 +181,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
-          color: Colors.black,
-          boxShadow: [BoxShadow(color: Colors.indigo.withOpacity(0.3), blurRadius: 20)],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.5),
+              blurRadius: 20,
+              offset: const Offset(0, -5),
+            )
+          ],
         ),
         child: BottomNavigationBar(
           currentIndex: _currentIndex,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          selectedItemColor: Colors.tealAccent,
-          unselectedItemColor: Colors.white30,
-          selectedFontSize: 12,
-          unselectedFontSize: 10,
           onTap: (index) => setState(() => _currentIndex = index),
           items: items,
+          // Colors and sizes are now driven by AppTheme's bottomNavigationBarTheme
         ),
       ),
     );

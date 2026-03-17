@@ -1,6 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class NotificationInboxScreen extends StatefulWidget {
   const NotificationInboxScreen({super.key});
@@ -39,114 +39,125 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Notifications', style: TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
+        title: const Text('Notifications'),
         actions: [
           TextButton(
             onPressed: () => _api.markNotificationsRead().then((_) => _loadNotifications()),
-            child: const Text('Mark all as read', style: TextStyle(color: Colors.tealAccent, fontSize: 12)),
+            child: const Text('Mark all as read', style: TextStyle(color: AppTheme.accentTeal, fontSize: 14)),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.indigo.shade900, Colors.teal.shade800, Colors.black],
-          ),
-        ),
-        child: _loading
-            ? const Center(child: CircularProgressIndicator(color: Colors.teal))
-            : _notifications.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.notifications_off_outlined, size: 80, color: Colors.white.withOpacity(0.1)),
-                        const SizedBox(height: 16),
-                        Text('Your inbox is empty', style: TextStyle(color: Colors.white.withOpacity(0.5))),
-                      ],
-                    ),
-                  )
-                : SafeArea(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                      itemCount: _notifications.length,
-                      itemBuilder: (context, index) {
-                        final n = _notifications[index];
-                        final isRead = n['is_read'] == true;
-                        
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          child: ClipRRect(
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _notifications.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.notifications_off_outlined, size: 80, color: AppTheme.textMediumContrast.withOpacity(0.5)),
+                      const SizedBox(height: 24),
+                      Text('Your inbox is empty', style: Theme.of(context).textTheme.titleLarge?.copyWith(color: AppTheme.textMediumContrast)),
+                    ],
+                  ),
+                )
+              : SafeArea(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    itemCount: _notifications.length,
+                    itemBuilder: (context, index) {
+                      final n = _notifications[index];
+                      final isRead = n['is_read'] == true;
+                      
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: Card(
+                          elevation: isRead ? 0 : 4,
+                          color: isRead ? AppTheme.darkBackground : AppTheme.cardBackground,
+                          shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(20),
-                            child: BackdropFilter(
-                              filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: isRead ? Colors.white.withOpacity(0.03) : Colors.white.withOpacity(0.08),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(color: isRead ? Colors.white.withOpacity(0.05) : Colors.tealAccent.withOpacity(0.2)),
-                                ),
-                                child: ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                  leading: Stack(
-                                    children: [
-                                      CircleAvatar(
-                                        backgroundColor: isRead ? Colors.white10 : Colors.tealAccent.withOpacity(0.2),
-                                        child: Icon(
-                                          isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, 
-                                          color: isRead ? Colors.white38 : Colors.tealAccent, 
-                                          size: 20
-                                        ),
-                                      ),
-                                      if (!isRead)
-                                        Positioned(
-                                          top: 0,
-                                          right: 0,
-                                          child: Container(
-                                            width: 10,
-                                            height: 10,
-                                            decoration: const BoxDecoration(color: Colors.orangeAccent, shape: BoxShape.circle),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                  title: Text(
-                                    n['title'],
-                                    style: TextStyle(
-                                      color: isRead ? Colors.white70 : Colors.white,
-                                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  subtitle: Padding(
-                                    padding: const EdgeInsets.only(top: 4),
-                                    child: Text(
-                                      n['message'],
-                                      style: TextStyle(color: Colors.white.withOpacity(isRead ? 0.3 : 0.5), fontSize: 12),
-                                    ),
-                                  ),
-                                  trailing: Text(
-                                    _formatDate(n['created_at']),
-                                    style: TextStyle(fontSize: 10, color: Colors.white.withOpacity(0.3)),
-                                  ),
-                                ),
-                              ),
+                            side: BorderSide(
+                              color: isRead ? AppTheme.textMediumContrast.withOpacity(0.1) : AppTheme.accentTeal.withOpacity(0.3),
                             ),
                           ),
-                        );
-                      },
-                    ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      radius: 24,
+                                      backgroundColor: isRead ? AppTheme.cardBackground : AppTheme.accentTeal.withOpacity(0.15),
+                                      child: Icon(
+                                        isRead ? Icons.notifications_none_rounded : Icons.notifications_active_rounded, 
+                                        color: isRead ? AppTheme.textMediumContrast : AppTheme.accentTeal, 
+                                        size: 24
+                                      ),
+                                    ),
+                                    if (!isRead)
+                                      Positioned(
+                                        top: 0,
+                                        right: 0,
+                                        child: Container(
+                                          width: 12,
+                                          height: 12,
+                                          decoration: BoxDecoration(
+                                            color: AppTheme.warningOrange, 
+                                            shape: BoxShape.circle,
+                                            border: Border.all(color: AppTheme.cardBackground, width: 2),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              n['title'],
+                                              style: TextStyle(
+                                                color: isRead ? AppTheme.textMediumContrast : AppTheme.textHighContrast,
+                                                fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            _formatDate(n['created_at']),
+                                            style: TextStyle(fontSize: 12, color: AppTheme.textMediumContrast.withOpacity(isRead ? 0.5 : 1.0)),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        n['message'],
+                                        style: TextStyle(
+                                          color: isRead ? AppTheme.textMediumContrast : AppTheme.textHighContrast.withOpacity(0.9), 
+                                          fontSize: 14,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
                   ),
-      ),
+                ),
     );
   }
 

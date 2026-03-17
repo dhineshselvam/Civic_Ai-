@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../theme/app_theme.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback onLogout;
@@ -23,138 +24,145 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('My Profile', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        title: const Text('My Profile'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.logout_rounded, color: Colors.white),
+            icon: const Icon(Icons.logout_rounded),
             onPressed: widget.onLogout,
+            tooltip: 'Sign Out',
           ),
         ],
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.indigo.shade900, Colors.teal.shade800, Colors.black],
-          ),
-        ),
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _profileFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.teal));
-            }
-            if (snapshot.hasError) {
-               return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white70)));
-            }
-            final user = snapshot.data!;
-            final trustScore = user['trust_score'] as int;
-            
-            return SafeArea(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    // User Header
-                    const CircleAvatar(
-                      radius: 50,
-                      backgroundColor: Colors.white10,
-                      child: Icon(Icons.person, size: 60, color: Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      user['username'] ?? 'User',
-                      style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
-                    ),
-                    Text(
-                      user['email'] ?? '',
-                      style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 14),
-                    ),
-                    const SizedBox(height: 40),
-
-                    // Trust Score Card
-                    _buildGlassTrustCard(trustScore),
-                    const SizedBox(height: 32),
-                    
-                    // Stats Grid
-                    Row(
-                      children: [
-                        Expanded(child: _buildGlassStatCard('REPORTS', user['reports_count'].toString(), Icons.analytics_outlined, Colors.indigoAccent)),
-                        const SizedBox(width: 16),
-                        Expanded(child: _buildGlassStatCard('RESOLVED', user['resolved_count'].toString(), Icons.check_circle_outline, Colors.tealAccent)),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _profileFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+             return Center(
+               child: Column(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   const Icon(Icons.error_outline_rounded, color: AppTheme.dangerRed, size: 48),
+                   const SizedBox(height: 16),
+                   Text('Error loading profile', style: Theme.of(context).textTheme.titleLarge),
+                   const SizedBox(height: 8),
+                   Text(snapshot.error.toString(), style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+                 ],
+               ),
+             );
+          }
+          final user = snapshot.data!;
+          final trustScore = user['trust_score'] as int;
+          
+          return SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+              child: Column(
+                children: [
+                  // User Header
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3), width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.accentTeal.withOpacity(0.1),
+                          blurRadius: 20,
+                          spreadRadius: 5,
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 32),
-                    
-                    // Info Section
-                    ClipRRect(
+                    child: const CircleAvatar(
+                      radius: 56,
+                      backgroundColor: AppTheme.cardBackground,
+                      child: Icon(Icons.person_outline_rounded, size: 60, color: AppTheme.accentTeal),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    user['username'] ?? 'User',
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppTheme.textHighContrast, letterSpacing: -0.5),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user['email'] ?? '',
+                    style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 16),
+                  ),
+                  const SizedBox(height: 48),
+
+                  // Trust Score Card
+                  _buildPremiumTrustCard(trustScore),
+                  const SizedBox(height: 32),
+                  
+                  // Stats Grid
+                  Row(
+                    children: [
+                      Expanded(child: _buildPremiumStatCard('REPORTS', user['reports_count'].toString(), Icons.analytics_outlined, AppTheme.primaryBlue)),
+                      const SizedBox(width: 16),
+                      Expanded(child: _buildPremiumStatCard('RESOLVED', user['resolved_count'].toString(), Icons.check_circle_outline, AppTheme.accentTeal)),
+                    ],
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // Info Section
+                  Card(
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                      side: BorderSide(color: AppTheme.textMediumContrast.withOpacity(0.1)),
+                    ),
+                    color: AppTheme.cardBackground,
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
                             children: [
-                              const Row(
-                                children: [
-                                  Icon(Icons.info_outline, color: Colors.tealAccent, size: 20),
-                                  SizedBox(width: 8),
-                                  Text('CREDIBILITY SYSTEM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Text(
-                                'Your score represents your contribution to the city. Higher scores are achieved by reporting valid civic issues and lead to priority verification.',
-                                style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 13, height: 1.5),
-                              ),
+                              Icon(Icons.info_outline_rounded, color: AppTheme.accentTeal, size: 24),
+                              SizedBox(width: 12),
+                              Text('CREDIBILITY SYSTEM', style: TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.5)),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Your score represents your contribution to the city. Higher scores are achieved by reporting valid civic issues and lead to priority verification.',
+                            style: TextStyle(color: AppTheme.textMediumContrast, fontSize: 15, height: 1.5),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 32),
-                    // LOGOUT BUTTON - prominent
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(20),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            color: Colors.redAccent.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.redAccent.withOpacity(0.3)),
-                          ),
-                          child: ListTile(
-                            leading: const Icon(Icons.logout_rounded, color: Colors.redAccent),
-                            title: const Text('Sign Out', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
-                            trailing: const Icon(Icons.arrow_forward_ios_rounded, color: Colors.redAccent, size: 14),
-                            onTap: () => _confirmLogout(context),
-                          ),
+                  ),
+                  const SizedBox(height: 32),
+                  
+                  // LOGOUT BUTTON
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.dangerRed.withOpacity(0.1),
+                        foregroundColor: AppTheme.dangerRed,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(color: AppTheme.dangerRed.withOpacity(0.3)),
                         ),
                       ),
+                      onPressed: () => _confirmLogout(context),
+                      icon: const Icon(Icons.logout_rounded, size: 24),
+                      label: const Text('SIGN OUT', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
                     ),
-                    const SizedBox(height: 40),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 48),
+                ],
               ),
-            );
-          },
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -163,14 +171,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.indigo.shade900,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Colors.white24)),
-        title: const Text('Sign Out', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to sign out?', style: TextStyle(color: Colors.white70)),
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?', style: TextStyle(fontSize: 16, color: AppTheme.textMediumContrast)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.dangerRed,
+              foregroundColor: AppTheme.textHighContrast,
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               ApiService().logout();
@@ -183,100 +192,104 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildGlassTrustCard(int score) {
-    Color scoreColor = score > 70 ? Colors.tealAccent : (score > 40 ? Colors.orangeAccent : Colors.redAccent);
+  Widget _buildPremiumTrustCard(int score) {
+    Color scoreColor = score > 70 ? AppTheme.successGreen : (score > 40 ? AppTheme.warningOrange : AppTheme.dangerRed);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(30),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(color: Colors.white.withOpacity(0.15)),
-          ),
-          child: Column(
-            children: [
-              const Text(
-                'CREDIBILITY SCORE', 
-                style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 2),
-              ),
-              const SizedBox(height: 24),
-              Stack(
-                alignment: Alignment.center,
-                children: [
-                  SizedBox(
-                    height: 140,
-                    width: 140,
-                    child: CircularProgressIndicator(
-                      value: score / 100,
-                      strokeWidth: 12,
-                      backgroundColor: Colors.white.withOpacity(0.1),
-                      color: scoreColor,
-                      strokeCap: StrokeCap.round,
-                    ),
-                  ),
-                  Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        '$score',
-                        style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: scoreColor),
-                      ),
-                      const Text('%', style: TextStyle(color: Colors.white38, fontSize: 18, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: scoreColor.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: scoreColor.withOpacity(0.3)),
-                ),
-                child: Text(
-                  score > 70 ? 'ELITE CITIZEN' : (score > 40 ? 'VERIFIED' : 'RESTRICTED'),
-                  style: TextStyle(color: scoreColor, fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 12),
-                ),
-              ),
+    return Card(
+      elevation: 4,
+      shadowColor: scoreColor.withOpacity(0.2),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(32),
+        side: BorderSide(color: scoreColor.withOpacity(0.3)),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(32),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppTheme.cardBackground,
+              scoreColor.withOpacity(0.05),
             ],
           ),
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 32),
+        child: Column(
+          children: [
+            const Text(
+              'CREDIBILITY SCORE', 
+              style: TextStyle(color: AppTheme.textMediumContrast, fontSize: 14, fontWeight: FontWeight.bold, letterSpacing: 2),
+            ),
+            const SizedBox(height: 32),
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  height: 160,
+                  width: 160,
+                  child: CircularProgressIndicator(
+                    value: score / 100,
+                    strokeWidth: 16,
+                    backgroundColor: AppTheme.darkBackground,
+                    color: scoreColor,
+                    strokeCap: StrokeCap.round,
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$score',
+                      style: TextStyle(fontSize: 56, fontWeight: FontWeight.w800, color: scoreColor, height: 1.0),
+                    ),
+                    const Text('%', style: TextStyle(color: AppTheme.textMediumContrast, fontSize: 24, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+            Container(
+               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+               decoration: BoxDecoration(
+                 color: scoreColor.withOpacity(0.15),
+                 borderRadius: BorderRadius.circular(24),
+               ),
+               child: Text(
+                 score > 70 ? 'ELITE CITIZEN' : (score > 40 ? 'VERIFIED' : 'RESTRICTED'),
+                 style: TextStyle(color: scoreColor, fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 14),
+               ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildGlassStatCard(String label, String value, IconData icon, Color color) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          child: Column(
-            children: [
-              Icon(icon, color: color, size: 28),
-              const SizedBox(height: 12),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                label,
-                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.1),
-              ),
-            ],
-          ),
+  Widget _buildPremiumStatCard(String label, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 0,
+      color: color.withOpacity(0.05),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(24),
+        side: BorderSide(color: color.withOpacity(0.2)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 16),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 36),
+            const SizedBox(height: 16),
+            Text(
+              value,
+              style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppTheme.textHighContrast),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2),
+            ),
+          ],
         ),
       ),
     );

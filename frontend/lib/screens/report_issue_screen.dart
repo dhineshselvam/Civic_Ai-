@@ -10,6 +10,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 import '../services/api_service.dart';
 import '../widgets/map_picker.dart';
+import '../theme/app_theme.dart';
 
 class ReportIssueScreen extends StatefulWidget {
   const ReportIssueScreen({super.key});
@@ -135,24 +136,29 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     } else {
       final source = await showModalBottomSheet<ImageSource>(
         context: context,
+        backgroundColor: AppTheme.cardBackground,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
+        ),
         builder: (context) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 20),
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-          ),
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textMediumContrast.withOpacity(0.5), borderRadius: BorderRadius.circular(2))),
+              const SizedBox(height: 24),
               ListTile(
-                leading: const CircleAvatar(backgroundColor: Colors.indigo, child: Icon(Icons.camera_alt, color: Colors.white)),
-                title: const Text('Capture with Camera'),
+                leading: const CircleAvatar(backgroundColor: AppTheme.primaryBlue, child: Icon(Icons.camera_alt, color: AppTheme.textHighContrast)),
+                title: Text('Capture with Camera', style: Theme.of(context).textTheme.bodyLarge),
                 onTap: () => Navigator.pop(context, ImageSource.camera),
               ),
+              const SizedBox(height: 8),
               ListTile(
-                leading: const CircleAvatar(backgroundColor: Colors.teal, child: Icon(Icons.photo_library, color: Colors.white)),
-                title: const Text('Pick from Gallery'),
+                leading: const CircleAvatar(backgroundColor: AppTheme.accentTeal, child: Icon(Icons.photo_library, color: AppTheme.darkBackground)),
+                title: Text('Pick from Gallery', style: Theme.of(context).textTheme.bodyLarge),
                 onTap: () => Navigator.pop(context, ImageSource.gallery),
               ),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -231,54 +237,57 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Dialog(
           backgroundColor: Colors.transparent,
           child: Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade900.withOpacity(0.8),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.tealAccent.withOpacity(0.3), width: 1.5),
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  blurRadius: 30,
+                  offset: const Offset(0, 10),
+                )
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.check_circle_rounded, color: Colors.tealAccent, size: 80),
+                const Icon(Icons.check_circle_rounded, color: AppTheme.successGreen, size: 80),
                 const SizedBox(height: 24),
-                const Text('REPORT SUBMITTED', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 2)),
+                const Text('REPORT SUBMITTED', style: TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 1.5, fontFamily: 'Outfit')),
                 const SizedBox(height: 12),
-                Text('AI detected this issue as: ${response.predictedCategory}', textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 16),
+                Text('AI detected this issue as: ${response.predictedCategory}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: 24),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                   decoration: BoxDecoration(
-                    color: response.priorityScore >= 60 ? Colors.redAccent.withOpacity(0.1) : Colors.tealAccent.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: response.priorityScore >= 60 ? Colors.redAccent.withOpacity(0.3) : Colors.transparent)
+                    color: response.priorityScore >= 60 ? AppTheme.dangerRed.withOpacity(0.1) : AppTheme.accentTeal.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: response.priorityScore >= 60 ? AppTheme.dangerRed.withOpacity(0.3) : Colors.transparent)
                   ),
                   child: Column(
                     children: [
                       Text(
                         'PRIORITY: ${response.priorityLabel.toUpperCase()}',
-                        style: TextStyle(color: response.priorityScore >= 60 ? Colors.redAccent : Colors.tealAccent, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1),
+                        style: TextStyle(color: response.priorityScore >= 60 ? AppTheme.dangerRed : AppTheme.accentTeal, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1),
                       ),
-                      const SizedBox(height: 4),
-                      Text('Severity Score: ${response.priorityScore}/100', style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                      const SizedBox(height: 6),
+                      Text('Severity Score: ${response.priorityScore}/100', style: Theme.of(context).textTheme.bodyMedium),
                     ],
                   ),
                 ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
+                  height: 56,
                   child: ElevatedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.tealAccent,
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    ),
-                    child: const Text('CONTINUE', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text('CONTINUE'),
                   ),
                 ),
               ],
@@ -304,30 +313,17 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Report Civic Issue', style: TextStyle(fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: Colors.white,
+        title: const Text('Report Civic Issue'),
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.indigo.shade900, Colors.teal.shade700],
-          ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              if (constraints.maxWidth >= 700) {
-                return _buildDesktopLayout();
-              }
-              return _buildMobileLayout();
-            },
-          ),
+      body: SafeArea(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 700) {
+              return _buildDesktopLayout();
+            }
+            return _buildMobileLayout();
+          },
         ),
       ),
     );
@@ -341,13 +337,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Mobile Map Section (Top)
             _buildSectionHeader('Pinpoint Location', Icons.location_on),
-            const SizedBox(height: 12),
-            _buildMapWidget(height: 280),
-            const SizedBox(height: 32),
-
-            // Mobile Form Section (Bottom)
+            const SizedBox(height: 16),
+            _buildMapWidget(height: 300),
+            const SizedBox(height: 40),
             _buildFormWidgets(),
           ],
         ),
@@ -357,7 +350,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
 
   Widget _buildDesktopLayout() {
     return Padding(
-      padding: const EdgeInsets.all(24.0),
+      padding: const EdgeInsets.all(32.0),
       child: Form(
         key: _formKey,
         child: Row(
@@ -370,12 +363,12 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _buildSectionHeader('Pinpoint Location', Icons.location_on),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 16),
                   Expanded(child: _buildMapWidget()),
                 ],
               ),
             ),
-            const SizedBox(width: 32),
+            const SizedBox(width: 48),
             // Right Side: Report Form
             Expanded(
               flex: 4,
@@ -398,11 +391,12 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     return Stack(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(20),
           child: Container(
             height: height, // null height allows Expanded to fill available space on desktop
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+              border: Border.all(color: AppTheme.textMediumContrast.withOpacity(0.2), width: 1.5),
+              borderRadius: BorderRadius.circular(20),
             ),
             child: MapPicker(
               selectedLat: _latitude,
@@ -412,14 +406,15 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
           ),
         ),
         Positioned(
-          top: 12,
-          right: 12,
+          top: 16,
+          right: 16,
           child: FloatingActionButton.small(
             onPressed: _isLocationLoading ? null : _getCurrentLocation,
-            backgroundColor: Colors.indigo,
+            backgroundColor: AppTheme.primaryBlue,
+            elevation: 4,
             child: _isLocationLoading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.my_location, color: Colors.white),
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textHighContrast))
+                : const Icon(Icons.my_location, color: AppTheme.textHighContrast),
           ),
         ),
       ],
@@ -436,91 +431,133 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         GestureDetector(
           onTap: _loading ? null : _pickImage,
           child: Container(
-            height: 220,
+            height: 240,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
-              borderRadius: BorderRadius.circular(30),
-              border: Border.all(color: Colors.white.withOpacity(0.1), width: 1),
+              color: AppTheme.cardBackground,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppTheme.primaryBlue.withOpacity(0.5), width: 1.5),
             ),
             child: Stack(
               alignment: Alignment.center,
               children: [
                 if (_image != null)
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(30),
-                    child: Image.memory(_image, width: double.infinity, height: double.infinity, fit: BoxFit.contain),
+                    borderRadius: BorderRadius.circular(22), // slightly less than container to fit inside border
+                    child: Image.memory(_image, width: double.infinity, height: double.infinity, fit: BoxFit.cover),
                   )
                 else
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(20),
+                        padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.tealAccent.withOpacity(0.1),
+                          color: AppTheme.cardBackground,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 5))
+                          ]
                         ),
-                        child: const Icon(Icons.add_a_photo_rounded, size: 40, color: Colors.tealAccent),
+                        child: const Icon(Icons.add_a_photo_rounded, size: 48, color: AppTheme.accentTeal),
                       ),
-                      const SizedBox(height: 16),
-                      const Text('TAP TO CAPTURE EVIDENCE', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                      const SizedBox(height: 24),
+                      Text('TAP TO CAPTURE EVIDENCE', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppTheme.textMediumContrast)),
                     ],
                   ),
-                // Viewport Markers (Decor)
-                Positioned(top: 20, left: 20, child: _viewportMarker(0)),
-                Positioned(top: 20, right: 20, child: _viewportMarker(1)),
-                Positioned(bottom: 20, left: 20, child: _viewportMarker(2)),
-                Positioned(bottom: 20, right: 20, child: _viewportMarker(3)),
               ],
             ),
           ),
         ),
-        const SizedBox(height: 32),
+        const SizedBox(height: 48),
 
         // Description
         _buildSectionHeader('Issue Details', Icons.description),
-        const SizedBox(height: 12),
-        _buildTextField(
+        const SizedBox(height: 16),
+        TextFormField(
           controller: _descriptionController,
-          label: 'Describe what\'s wrong',
-          icon: Icons.edit_note,
-          hint: 'Describe the situation...',
           maxLines: 4,
           validator: (v) => (v == null || v.isEmpty) ? 'Description required' : null,
+          style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 16),
+          decoration: InputDecoration(
+            labelText: 'Describe what\'s wrong',
+            hintText: 'Provide details about the issue...',
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(bottom: 60, left: 16, right: 16), // align to top left
+              child: Icon(Icons.edit_note, color: AppTheme.textMediumContrast, size: 28),
+            ),
+          ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 24),
 
         // Address Field
-        _buildTextField(
+        TextFormField(
           controller: _addressController,
-          label: 'Captured Address (Verify & Edit)',
-          icon: Icons.map,
-          hint: 'Fetching address...',
           maxLines: 2,
+          style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 15),
+          decoration: InputDecoration(
+            labelText: 'Captured Address (Verify & Edit)',
+            hintText: 'Fetching address...',
+            prefixIcon: const Padding(
+              padding: EdgeInsets.only(bottom: 24, left: 16, right: 16),
+              child: Icon(Icons.map, color: AppTheme.textMediumContrast, size: 28),
+            ),
+            // Distinct style for read-only/auto-filled look
+            fillColor: AppTheme.darkBackground.withOpacity(0.5),
+          ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 48),
 
         // Messages
-        if (_error != null) _buildMessage(Colors.redAccent, _error!),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 24),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppTheme.dangerRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppTheme.dangerRed.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.error_outline_rounded, color: AppTheme.dangerRed, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(_error!, style: const TextStyle(color: AppTheme.dangerRed, fontSize: 15, fontWeight: FontWeight.w500)),
+                  ),
+                ],
+              ),
+            ),
+          ),
         if (_successMessage != null) ...[
-          _buildMessage(Colors.tealAccent.shade400, _successMessage!),
-          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.successGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppTheme.successGreen.withOpacity(0.3)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.check_circle_outline_rounded, color: AppTheme.successGreen, size: 24),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(_successMessage!, style: const TextStyle(color: AppTheme.successGreen, fontSize: 15, fontWeight: FontWeight.w500)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
         ],
 
-        // Submit
+        // Submit Button
         SizedBox(
           height: 64,
           child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal.shade600,
-              foregroundColor: Colors.white,
-              elevation: 8,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-            ),
             onPressed: _loading ? null : _submit,
             child: _loading
-                ? const CircularProgressIndicator(color: Colors.white)
-                : const Text('SUBMIT REPORT', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                ? const SizedBox(width: 28, height: 28, child: CircularProgressIndicator(color: AppTheme.darkBackground, strokeWidth: 3))
+                : const Text('SUBMIT REPORT', style: TextStyle(fontSize: 18)),
           ),
         ),
         const SizedBox(height: 40),
@@ -531,69 +568,10 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: Colors.teal.shade200, size: 28),
-        const SizedBox(width: 12),
-        Text(title, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+        Icon(icon, color: AppTheme.accentTeal, size: 28),
+        const SizedBox(width: 16),
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
       ],
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    required String hint,
-    int maxLines = 1,
-    String? Function(String?)? validator,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: TextFormField(
-        controller: controller,
-        maxLines: maxLines,
-        validator: validator,
-        style: const TextStyle(color: Colors.white),
-        decoration: InputDecoration(
-          labelText: label,
-          labelStyle: TextStyle(color: Colors.teal.shade100),
-          hintText: hint,
-          hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
-          prefixIcon: Icon(icon, color: Colors.teal.shade200),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-          filled: true,
-          fillColor: Colors.transparent,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMessage(Color color, String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.2),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.5)),
-      ),
-      child: Text(text, style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-    );
-  }
-
-  Widget _viewportMarker(int corner) {
-    return Container(
-      width: 15,
-      height: 15,
-      decoration: BoxDecoration(
-        border: Border(
-          top: (corner == 0 || corner == 1) ? const BorderSide(color: Colors.tealAccent, width: 2) : BorderSide.none,
-          bottom: (corner == 2 || corner == 3) ? const BorderSide(color: Colors.tealAccent, width: 2) : BorderSide.none,
-          left: (corner == 0 || corner == 2) ? const BorderSide(color: Colors.tealAccent, width: 2) : BorderSide.none,
-          right: (corner == 1 || corner == 3) ? const BorderSide(color: Colors.tealAccent, width: 2) : BorderSide.none,
-        ),
-      ),
     );
   }
 }
