@@ -144,10 +144,26 @@ class _AdminReportCard extends StatelessWidget {
                   child: Row(
                     children: [
                       Flexible(
-                        child: Text(
-                          report.predicted_category.toUpperCase(),
-                          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.8),
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              report.predicted_category.toUpperCase(),
+                              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 0.8),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Report ID: ${report.id}',
+                              style: const TextStyle(
+                                color: AppTheme.accentTeal,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       if (report.predicted_category.toLowerCase() == 'spam')
@@ -774,20 +790,35 @@ class _UserReportCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            report.predicted_category.toUpperCase(),
-                            style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                report.predicted_category.toUpperCase(),
+                                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 0.5),
+                              ),
+                              if (report.predicted_category.toLowerCase() == 'spam')
+                                Container(
+                                  margin: const EdgeInsets.only(left: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: AppTheme.dangerRed, borderRadius: BorderRadius.circular(4)),
+                                  child: const Text('SPAM', style: TextStyle(color: AppTheme.textHighContrast, fontSize: 10, fontWeight: FontWeight.bold)),
+                                ),
+                            ],
                           ),
-                          if (report.predicted_category.toLowerCase() == 'spam')
-                            Container(
-                              margin: const EdgeInsets.only(left: 8),
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(color: AppTheme.dangerRed, borderRadius: BorderRadius.circular(4)),
-                              child: const Text('SPAM', style: TextStyle(color: AppTheme.textHighContrast, fontSize: 10, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Report ID: ${report.id}',
+                            style: const TextStyle(
+                              color: AppTheme.accentTeal,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.3,
                             ),
+                          ),
                         ],
                       ),
                       Container(

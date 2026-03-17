@@ -401,6 +401,16 @@ class ApiService {
     }
     throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
+
+  /// Fetch activity log for the logged-in admin/dept user
+  Future<List<ActivityLog>> getActivityLog() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/users/activity-log/'), headers: _headers);
+    if (response.statusCode == 200) {
+      final List<dynamic> list = jsonDecode(response.body);
+      return list.map((e) => ActivityLog.fromMap(e as Map<String, dynamic>)).toList();
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
 }
 
 /// Domain model for a Civic Complaint.
@@ -576,4 +586,28 @@ class ApiException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// Activity log entry for Admin/Department profile page.
+class ActivityLog {
+  const ActivityLog({
+    required this.id,
+    required this.action,
+    required this.role,
+    required this.timestamp,
+  });
+
+  factory ActivityLog.fromMap(Map<String, dynamic> map) {
+    return ActivityLog(
+      id: map['id'] as int,
+      action: map['action'] as String? ?? '',
+      role: map['role'] as String? ?? '',
+      timestamp: DateTime.parse(map['timestamp'] as String),
+    );
+  }
+
+  final int id;
+  final String action;
+  final String role;
+  final DateTime timestamp;
 }

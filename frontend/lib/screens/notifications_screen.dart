@@ -138,6 +138,18 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                                           ),
                                         ],
                                       ),
+                                      if (_extractReportId(n['message'] ?? '') != null) ...[
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Report ID: ${_extractReportId(n['message']!)}',
+                                          style: const TextStyle(
+                                            color: AppTheme.accentTeal,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            letterSpacing: 0.3,
+                                          ),
+                                        ),
+                                      ],
                                       const SizedBox(height: 8),
                                       Text(
                                         n['message'],
@@ -172,5 +184,13 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
     } catch (e) {
       return "";
     }
+  }
+
+  /// Extracts a complaint ID number from a notification message.
+  /// Looks for patterns like "Report #42", "report #42", "#42", "task #42".
+  String? _extractReportId(String message) {
+    final match = RegExp(r'[Rr]eport\s+#?(\d+)|[Tt]ask\s+#?(\d+)|#(\d+)').firstMatch(message);
+    if (match == null) return null;
+    return match.group(1) ?? match.group(2) ?? match.group(3);
   }
 }

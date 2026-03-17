@@ -185,6 +185,16 @@ class _PremiumComplaintCard extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
+                                'Report ID: ${complaint.id}',
+                                style: const TextStyle(
+                                  color: AppTheme.accentTeal,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.3,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
                                 _formatDate(complaint.createdAt),
                                 style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 13),
                               ),
@@ -218,29 +228,6 @@ class _PremiumComplaintCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 20),
                     
-                    // Priority Badge (if high priority)
-                    if (complaint.priorityScore >= 60)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                          decoration: BoxDecoration(
-                            color: AppTheme.dangerRed.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.dangerRed.withOpacity(0.3)),
-                          ),
-                          child: Text(
-                            'URGENT: ${complaint.priorityLabel.toUpperCase()} (${complaint.priorityScore})',
-                            style: const TextStyle(
-                              color: AppTheme.dangerRed,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ),
-                      ),
-                      
                     // Body: Image and Description
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,

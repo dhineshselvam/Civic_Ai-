@@ -238,6 +238,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         letterSpacing: 0.5,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Report ID: ${issue.id}',
+                      style: const TextStyle(
+                        color: AppTheme.accentTeal,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3,
+                      ),
+                    ),
                     const SizedBox(height: 8),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,

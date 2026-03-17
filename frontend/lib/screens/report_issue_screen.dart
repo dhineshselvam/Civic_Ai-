@@ -262,25 +262,6 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 const Text('REPORT SUBMITTED', style: TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 1.5, fontFamily: 'Outfit')),
                 const SizedBox(height: 12),
                 Text('AI detected this issue as: ${response.predictedCategory}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
-                const SizedBox(height: 24),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  decoration: BoxDecoration(
-                    color: response.priorityScore >= 60 ? AppTheme.dangerRed.withOpacity(0.1) : AppTheme.accentTeal.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: response.priorityScore >= 60 ? AppTheme.dangerRed.withOpacity(0.3) : Colors.transparent)
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'PRIORITY: ${response.priorityLabel.toUpperCase()}',
-                        style: TextStyle(color: response.priorityScore >= 60 ? AppTheme.dangerRed : AppTheme.accentTeal, fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1),
-                      ),
-                      const SizedBox(height: 6),
-                      Text('Severity Score: ${response.priorityScore}/100', style: Theme.of(context).textTheme.bodyMedium),
-                    ],
-                  ),
-                ),
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,

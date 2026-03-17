@@ -12,6 +12,7 @@ from .clip_service import classify_issue
 from .models import Complaint, UserReport
 from services.duplicate_checker import compute_image_hash, find_nearby_duplicate
 from .notification_service import send_notification
+from users.models import log_activity
 from .serializers import (
     ComplaintCreateSerializer, 
     ComplaintResponseSerializer, 
@@ -358,6 +359,7 @@ class ComplaintDetailView(APIView):
                     
                     complaint.status = 'Assigned'
                     complaint.save()
+                    log_activity(request.user, f"Assigned complaint #{complaint.id} to crew member '{crew_username}'")
                     
                     if complaint.user:
                         send_notification(
@@ -377,6 +379,7 @@ class ComplaintDetailView(APIView):
             new_status = request.data.get('status')
             if new_status and new_status != old_status:
                 complaint.status = new_status
+                log_activity(request.user, f"Updated complaint #{complaint.id} status to '{new_status}'")
                 # Credibility: verified genuine reports earn a bonus
                 if complaint.user and old_status == 'Reported' and new_status == 'Verified':
                     reporter = complaint.user
@@ -551,6 +554,7 @@ class AutoAssignView(APIView):
             assigned_count = auto_assign_teams(department=optimization_dept)
             
             msg = f'Optimization complete. Successfully assigned {assigned_count} complaints.'
+            log_activity(request.user, f"Ran auto-assign optimizer (assigned {assigned_count} complaints)")
             if pk:
                 from complaints.models import Complaint
                 try:

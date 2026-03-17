@@ -1,8 +1,9 @@
 from django.urls import path
 from .views import (
-    RegisterView, 
-    LoginView, 
-    UserProfileView, 
+    RegisterView,
+    LoginView,
+    UserProfileView,
+    ActivityLogView,
     NotificationListView,
     PasswordResetRequestView,
     PasswordResetConfirmView,
@@ -23,4 +24,5 @@ urlpatterns = [
     path('crew-list/', CrewListView.as_view(), name='crew_list'),
     path('teams/', TeamListView.as_view(), name='team_list'),
     path('teams/<int:pk>/members/', TeamMemberManageView.as_view(), name='team_member_manage'),
+    path('activity-log/', ActivityLogView.as_view(), name='activity_log'),
 ]

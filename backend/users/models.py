@@ -69,6 +69,31 @@ class CustomUser(AbstractUser):
             return "Low"
         return "Unreliable"
 
+class ActivityLog(models.Model):
+    """Records actions performed by Admin/Department users for the profile Activity Summary."""
+    user = models.ForeignKey(
+        'CustomUser',
+        on_delete=models.CASCADE,
+        related_name='activity_logs',
+    )
+    role = models.CharField(max_length=20, blank=True)
+    action = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"[{self.role}] {self.user.username}: {self.action[:60]}"
+
+
+def log_activity(user, action: str) -> None:
+    """Convenience helper — create an ActivityLog entry if user is a staff role."""
+    staff_roles = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY', 'CREW')
+    if user and getattr(user, 'role', None) in staff_roles:
+        ActivityLog.objects.create(user=user, role=user.role, action=action)
+
+
 class PasswordResetToken(models.Model):
     """Secure token for email-based password reset."""
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)

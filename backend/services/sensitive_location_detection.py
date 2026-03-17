@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # ── Configuration ──────────────────────────────────────────────────────────────
 
 _OVERPASS_URL = "https://overpass-api.de/api/interpreter"
-_RADIUS_METRES = 500
+_RADIUS_METRES = 400
 _TIMEOUT_SECONDS = 6  # hard cap — never block complaint creation
 
 # ── Overpass query template ────────────────────────────────────────────────────

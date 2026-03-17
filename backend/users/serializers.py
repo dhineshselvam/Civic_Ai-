@@ -1,10 +1,15 @@
 from rest_framework import serializers
-from .models import CustomUser, Notification, Team
+from .models import CustomUser, Notification, Team, ActivityLog
 
 class TeamSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'department', 'is_active', 'created_at']
+
+class ActivityLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ActivityLog
+        fields = ['id', 'action', 'role', 'timestamp']
 
 class UserSerializer(serializers.ModelSerializer):
     credibility_label = serializers.CharField(read_only=True)
@@ -22,9 +27,10 @@ class UserSerializer(serializers.ModelSerializer):
             'credibility_label',
             'reports_count',
             'resolved_count',
+            'last_login',
             'team',
         ]
-        read_only_fields = ['id', 'trust_score', 'credibility_label', 'reports_count', 'resolved_count']
+        read_only_fields = ['id', 'trust_score', 'credibility_label', 'reports_count', 'resolved_count', 'last_login']
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

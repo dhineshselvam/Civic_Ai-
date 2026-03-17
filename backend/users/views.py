@@ -7,11 +7,12 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
-from .models import CustomUser, PasswordResetToken, Notification
+from .models import CustomUser, PasswordResetToken, Notification, ActivityLog
 from .serializers import (
     RegisterSerializer,
     LoginSerializer,
     UserSerializer,
+    ActivityLogSerializer,
     NotificationSerializer,
     PasswordResetRequestSerializer,
     PasswordResetConfirmSerializer
@@ -104,8 +105,24 @@ class PasswordResetConfirmView(APIView):
 
 class UserProfileView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        data = UserSerializer(request.user).data
+        # For staff roles include activity summary
+        staff_roles = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY', 'CREW')
+        if request.user.role in staff_roles:
+            logs = ActivityLog.objects.filter(user=request.user)[:10]
+            data['recent_activity'] = ActivityLogSerializer(logs, many=True).data
+        return Response(data)
+
+
+class ActivityLogView(APIView):
+    """GET /api/users/activity-log/ — last 10 ActivityLog entries for the requesting user."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        logs = ActivityLog.objects.filter(user=request.user)[:10]
+        return Response(ActivityLogSerializer(logs, many=True).data)
 
 class NotificationListView(APIView):
     permission_classes = [permissions.IsAuthenticated]
