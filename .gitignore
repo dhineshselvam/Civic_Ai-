@@ -11,7 +11,9 @@ media/
 staticfiles/
 *.sqlite3-journal
 *.env
-
+*.pkl
+*.csv
+backend/ml_training/
 # Django migrations
 */migrations/*.py
 */migrations/*.pyc
