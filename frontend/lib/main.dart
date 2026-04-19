@@ -9,6 +9,7 @@ import 'screens/notifications_screen.dart';
 import 'screens/admin_reports_screen.dart';
 import 'screens/crew_management_screen.dart';
 import 'screens/city_analytics_screen.dart';
+import 'screens/predictive_analysis_screen.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 
@@ -100,6 +101,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         AdminReportsScreen(title: reportsTitle),
         CrewManagementScreen(),
         CityAnalyticsScreen(),
+        const PredictiveAnalysisScreen(),
         ProfileScreen(onLogout: _logout),
       ];
     } else {
@@ -119,6 +121,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded, size: 26), label: 'Reports'),
         BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded, size: 26), label: 'Crew'),
         BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded, size: 26), label: 'Analytics'),
+        BottomNavigationBarItem(icon: Icon(Icons.auto_graph_rounded, size: 26), label: 'Predict'),
         BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
       ];
     } else {

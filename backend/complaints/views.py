@@ -60,6 +60,71 @@ class ReportIssueView(APIView):
                     tmp.write(chunk)
                 image.seek(0)
 
+            genuinity_status = 'Unverified'
+            try:
+                import piexif
+                from math import radians, sin, cos, sqrt, atan2
+
+                def _rational_to_float(val):
+                    """Convert a piexif rational (tuple of two ints) or plain number to float."""
+                    if isinstance(val, tuple) and len(val) == 2:
+                        return float(val[0]) / float(val[1]) if val[1] else 0.0
+                    return float(val)
+
+                def _dms_to_decimal(dms_tuple, ref):
+                    """Convert a DMS tuple ((d,d),(m,m),(s,s)) + ref string to signed decimal degrees."""
+                    deg  = _rational_to_float(dms_tuple[0])
+                    min_ = _rational_to_float(dms_tuple[1])
+                    sec  = _rational_to_float(dms_tuple[2])
+                    dec  = deg + (min_ / 60.0) + (sec / 3600.0)
+                    ref_str = ref.decode('utf-8', 'ignore') if isinstance(ref, bytes) else str(ref)
+                    return -dec if ref_str.strip().upper() in ('S', 'W') else dec
+
+                exif_dict = piexif.load(tmp_path)
+                gps_info  = exif_dict.get("GPS", {})
+                logger.debug(f"[Genuinity] Raw GPS EXIF keys: {list(gps_info.keys())}")
+                logger.debug(f"[Genuinity] Full GPS EXIF data: {gps_info}")
+
+                # piexif key constants: 1=LatRef, 2=Lat, 3=LngRef, 4=Lng
+                exif_lat = exif_lng = None
+
+                if 2 in gps_info and gps_info[2]:
+                    lat_ref = gps_info.get(1, b'N')
+                    exif_lat = _dms_to_decimal(gps_info[2], lat_ref)
+                    logger.debug(f"[Genuinity] Extracted EXIF lat={exif_lat} (ref={lat_ref})")
+
+                if 4 in gps_info and gps_info[4]:
+                    lng_ref = gps_info.get(3, b'E')
+                    exif_lng = _dms_to_decimal(gps_info[4], lng_ref)
+                    logger.debug(f"[Genuinity] Extracted EXIF lng={exif_lng} (ref={lng_ref})")
+
+                if exif_lat is not None and exif_lng is not None:
+                    R = 6371000
+                    phi1 = radians(float(latitude))
+                    phi2 = radians(exif_lat)
+                    dphi = radians(exif_lat - float(latitude))
+                    dlam = radians(exif_lng - float(longitude))
+                    a = sin(dphi / 2.0) ** 2 + cos(phi1) * cos(phi2) * sin(dlam / 2.0) ** 2
+                    distance = R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+                    logger.debug(
+                        f"[Genuinity] Input coords=({latitude}, {longitude}), "
+                        f"EXIF coords=({exif_lat}, {exif_lng}), distance={distance:.1f}m"
+                    )
+
+                    if distance < 500:
+                        genuinity_status = 'Verified'
+                        logger.info(f"[Genuinity] VERIFIED – distance {distance:.1f}m < 500m")
+                    else:
+                        genuinity_status = 'Flagged'
+                        logger.info(f"[Genuinity] FLAGGED – distance {distance:.1f}m >= 500m")
+                else:
+                    logger.info("[Genuinity] No valid GPS coordinates found in EXIF – status remains Unverified")
+
+            except Exception as e:
+                import traceback
+                logger.warning(f"[Genuinity] EXIF parsing failed: {e}\n{traceback.format_exc()}")
+
             predicted_category = classify_issue(tmp_path, description)
 
             # Duplicate detection using perceptual hashing
@@ -133,6 +198,7 @@ class ReportIssueView(APIView):
                 'complaint_id': existing.id,
                 'priority_score': existing.priority_score,
                 'priority_label': existing.priority_label,
+                'genuinity_status': genuinity_status,
             })
             response_serializer.is_valid(raise_exception=True)
             return Response(response_serializer.validated_data, status=status.HTTP_200_OK)
@@ -148,6 +214,7 @@ class ReportIssueView(APIView):
             address=address,
             image_hash=img_hash,
             user=user,
+            genuinity_status=genuinity_status,
         )
         complaint.save()
         
@@ -165,15 +232,27 @@ class ReportIssueView(APIView):
         )
 
         if complaint.user:
+            # SUBMITTED
             send_notification(
                 user=complaint.user,
-                title="Report Received",
+                title="Complaint Submitted",
                 message=(
-                    f"Report #{complaint.id} classified as '{predicted_category}' "
-                    f"with {complaint.priority_label} priority."
+                    f"Your complaint #{complaint.id} has been successfully submitted. "
+                    f"The issue is identified as {predicted_category} and will be reviewed shortly."
                 ),
                 notification_type='in_app'
             )
+            # UNDER_REVIEW — fires immediately when genuinity_status is Unverified
+            if genuinity_status == 'Unverified':
+                send_notification(
+                    user=complaint.user,
+                    title="Complaint Under Review",
+                    message=(
+                        f"Your complaint #{complaint.id} is under review. "
+                        f"We are currently verifying the submitted details."
+                    ),
+                    notification_type='in_app'
+                )
 
         response_serializer = ComplaintResponseSerializer(data={
             'message': 'Complaint submitted successfully',
@@ -181,6 +260,7 @@ class ReportIssueView(APIView):
             'complaint_id': complaint.id,
             'priority_score': complaint.priority_score,
             'priority_label': complaint.priority_label,
+            'genuinity_status': genuinity_status,
         })
         response_serializer.is_valid(raise_exception=True)
         return Response(response_serializer.validated_data, status=status.HTTP_201_CREATED)
@@ -316,7 +396,30 @@ class ComplaintDetailView(APIView):
                 return Response({'error': 'Unauthorized'}, status=status.HTTP_403_FORBIDDEN)
                 
             if serializer.is_valid():
+                old_genuinity = complaint.genuinity_status
                 serializer.save()
+                new_genuinity = request.data.get('genuinity_status')
+                if complaint.user:
+                    if new_genuinity == 'Verified' and old_genuinity != 'Verified':
+                        # VERIFIED
+                        send_notification(
+                            user=complaint.user,
+                            title="Complaint Verified",
+                            message=(
+                                f"Your complaint #{complaint.id} has been verified and approved. "
+                                f"It will now be processed."
+                            ),
+                        )
+                    elif new_genuinity == 'Flagged' and old_genuinity != 'Flagged':
+                        # REJECTED
+                        send_notification(
+                            user=complaint.user,
+                            title="Complaint Rejected",
+                            message=(
+                                f"Your complaint #{complaint.id} was rejected due to invalid details. "
+                                f"Please resubmit with correct information."
+                            ),
+                        )
                 return Response({'message': 'Update successful', 'data': serializer.data})
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except Complaint.DoesNotExist:
@@ -362,10 +465,14 @@ class ComplaintDetailView(APIView):
                     log_activity(request.user, f"Assigned complaint #{complaint.id} to crew member '{crew_username}'")
                     
                     if complaint.user:
+                        # ASSIGNED
                         send_notification(
                             user=complaint.user,
-                            title="Issue Assigned",
-                            message=f"Your report #{complaint.id} has been assigned to our field crew.",
+                            title="Complaint Assigned",
+                            message=(
+                                f"Your complaint #{complaint.id} has been assigned "
+                                f"to the concerned team for resolution."
+                            ),
                         )
                     
                     send_notification(
@@ -387,11 +494,32 @@ class ComplaintDetailView(APIView):
                     reporter.save(update_fields=['trust_score'])
 
                 if complaint.user:
-                    send_notification(
-                        user=complaint.user,
-                        title=f"Status Update: {new_status}",
-                        message=f"The status of your report #{complaint.id} is now {new_status}.",
-                    )
+                    if new_status == 'Resolved':
+                        # RESOLVED
+                        send_notification(
+                            user=complaint.user,
+                            title="Complaint Resolved",
+                            message=(
+                                f"Your complaint #{complaint.id} has been successfully resolved. "
+                                f"Please verify the resolution."
+                            ),
+                        )
+                        # FEEDBACK_REQUEST
+                        send_notification(
+                            user=complaint.user,
+                            title="Share Your Feedback",
+                            message=(
+                                f"Please rate your experience for complaint #{complaint.id}. "
+                                f"Your feedback helps us improve."
+                            ),
+                        )
+                    else:
+                        # Generic fallback for any other status change
+                        send_notification(
+                            user=complaint.user,
+                            title=f"Status Update: {new_status}",
+                            message=f"The status of your complaint #{complaint.id} is now {new_status}.",
+                        )
             
             complaint.save()
             return Response(ComplaintSerializer(complaint).data)
@@ -453,12 +581,44 @@ class DashboardStatsView(APIView):
             status__in=['Reported', 'Verified', 'Assigned', 'In-Progress']
         ).count()
 
-        # SLA breach: unresolved and open > 3 days
+        # SLA breach: backward-compatible fallback – Low priority unresolved > 72h (3 days)
         sla_threshold = tz.now() - timedelta(days=3)
         sla_breaches = qs.filter(
             created_at__lt=sla_threshold,
             status__in=['Reported', 'Verified']
         ).count()
+
+        # --- Dynamic SLA stats (new tier-based logic) ---
+        now = tz.now()
+        near_threshold = now + timedelta(minutes=60)
+
+        # Complaints whose stored sla_deadline has already passed (active only)
+        dynamic_sla_breaches = qs.filter(
+            status__in=['Reported', 'Verified'],
+            sla_deadline__isnull=False,
+            sla_deadline__lte=now,
+        ).count()
+
+        # Complaints within 60 min of their deadline (not yet breached)
+        near_deadline_count = qs.filter(
+            status__in=['Reported', 'Verified'],
+            sla_deadline__isnull=False,
+            sla_deadline__gt=now,
+            sla_deadline__lte=near_threshold,
+        ).count()
+
+        # (priority score might have been escalated naturally or by SLA system)
+        escalated_count = qs.filter(
+            status__in=['Reported', 'Verified'],
+            sla_breach_notified=False,
+            priority_label='Critical',
+        ).exclude(priority_score__lt=80).count()
+        # Simpler approximation: count complaints whose sla_breach_logs exist
+        from complaints.models import SLABreachLog
+        escalated_count = SLABreachLog.objects.filter(
+            complaint__in=qs.filter(status__in=['Reported', 'Verified']),
+            reason__icontains='Escalated',
+        ).values('complaint').distinct().count()
 
         # Average resolution time in days
         resolved_complaints = qs.filter(status='Resolved')
@@ -478,7 +638,7 @@ class DashboardStatsView(APIView):
         )
 
         # Crew available
-        # (Alread calculated above, using the scoped crew_qs)
+        # (Already calculated above, using the scoped crew_qs)
         pass
 
         return Response({
@@ -488,11 +648,57 @@ class DashboardStatsView(APIView):
             'crew_count': crew_count,
             'user_count': user_count,
             'high_priority_count': high_priority_count,
+            # Legacy 3-day SLA breach count (backward compatible)
             'sla_breaches': sla_breaches,
+            # New dynamic tier-based SLA counts
+            'dynamic_sla_breaches': dynamic_sla_breaches,
+            'near_deadline_count': near_deadline_count,
+            'escalated_count': escalated_count,
             'avg_resolution_days': avg_resolution_days,
             'top_categories': top_categories,
             'crew_available': crew_available,
         })
+
+
+class SLABreachLogListView(APIView):
+    """
+    GET /api/complaints/sla-breach-logs/
+    Returns the 50 most recent SLA breach/escalation log entries.
+    Accessible to Admin and Department roles only.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    DASHBOARD_ROLES = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY')
+
+    def get(self, request):
+        if request.user.role not in self.DASHBOARD_ROLES:
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        from complaints.models import SLABreachLog
+
+        role = request.user.role
+        logs_qs = SLABreachLog.objects.select_related('complaint').order_by('-timestamp')
+
+        # Scope to department for non-admin users
+        if role != 'ADMIN':
+            dept_map = {'PWD': 'PWD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICITY'}
+            dept = dept_map.get(role)
+            if dept:
+                logs_qs = logs_qs.filter(complaint__department=dept)
+
+        logs_qs = logs_qs[:50]
+        data = [
+            {
+                'id': log.id,
+                'complaint_id': log.complaint_id,
+                'complaint_category': log.complaint.predicted_category,
+                'complaint_status': log.complaint.status,
+                'complaint_priority': log.complaint.priority_label,
+                'timestamp': log.timestamp.isoformat(),
+                'reason': log.reason,
+            }
+            for log in logs_qs
+        ]
+        return Response(data)
 
 
 class HighPriorityView(APIView):
@@ -772,3 +978,230 @@ class ManageAssignmentView(APIView):
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# ---------------------------------------------------------------------------
+# Predictive Analysis – module-level model cache (loaded once per process)
+# ---------------------------------------------------------------------------
+_PRED_MODELS_CACHE: dict = {}
+
+def _load_predictive_models() -> dict:
+    """Load RF + encoders from ml_training/ – cached after first call."""
+    global _PRED_MODELS_CACHE
+    if _PRED_MODELS_CACHE:
+        return _PRED_MODELS_CACHE
+
+    import joblib
+    import os
+
+    ml_dir = os.path.join(os.path.dirname(__file__), '..', 'ml_training')
+
+    rf_path  = os.path.join(ml_dir, 'predictive_rf_model.pkl')
+    enc_path = os.path.join(ml_dir, 'zone_encoder.pkl')
+    thr_path = os.path.join(ml_dir, 'zone_risk_thresholds.pkl')
+    cen_path = os.path.join(ml_dir, 'zone_monthly_centroids.pkl')
+    hot_path = os.path.join(ml_dir, 'zone_hotspots.pkl')
+
+    if not all(os.path.exists(p) for p in [rf_path, enc_path, thr_path]):
+        raise FileNotFoundError(
+            "Predictive model files not found. "
+            "Run: python ml_training/train_predictive_model.py"
+        )
+
+    _PRED_MODELS_CACHE = {
+        'rf':         joblib.load(rf_path),
+        'zone_enc':   joblib.load(enc_path),
+        'thresholds': joblib.load(thr_path),
+        'centroids':  joblib.load(cen_path) if os.path.exists(cen_path) else {},
+        'hotspots':   joblib.load(hot_path) if os.path.exists(hot_path) else {},
+    }
+    logger.info("Predictive models loaded and cached.")
+    return _PRED_MODELS_CACHE
+
+
+class PredictiveAnalysisView(APIView):
+    """
+    GET /api/predictions/?month=<1-12>
+
+    Returns a JSON list – one entry per zone – with:
+      zone, predicted_issue, expected_complaints, risk_level
+
+    Role-based filtering:
+      ADMIN        → all 6 zones, all issue types
+      PWD          → all zones, but predicted_issue forced to Pothole filter
+      SANITATION   → all zones, Garbage filter
+      ELECTRICITY  → all zones, Streetlight filter
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    ALLOWED_ROLES = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY')
+
+    DEPT_ISSUE_MAP = {
+        'PWD':        'Pothole',
+        'SANITATION': 'Garbage',
+        'ELECTRICITY': 'Streetlight',
+    }
+
+    # Zones with their approximate centroids (for reference / ordering)
+    ZONES = [
+        'White Town',
+        'Lawspet',
+        'Muthialpet',
+        'Reddiarpalayam',
+        'Ariyankuppam',
+        'Villianur',
+    ]
+
+    # Representative street-level addresses for each zone
+    ZONE_ADDRESSES = {
+        'White Town':     'Rue de la Marine, White Town, Puducherry - 605001',
+        'Lawspet':        '100 Feet Road, Lawspet, Puducherry - 605008',
+        'Muthialpet':     'Bussy Street, Muthialpet, Puducherry - 605003',
+        'Reddiarpalayam': 'Reddiarpalayam Main Road, Puducherry - 605010',
+        'Ariyankuppam':   'Ariyankuppam Village Road, Puducherry - 605007',
+        'Villianur':      'Villianur Main Road, Puducherry - 605110',
+    }
+
+    def get(self, request):
+        role = getattr(request.user, 'role', None)
+        if role not in self.ALLOWED_ROLES:
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Parse month parameter (default: current month)
+        from datetime import date as _date
+        current_month = _date.today().month
+        try:
+            month = int(request.query_params.get('month', current_month))
+            if not 1 <= month <= 12:
+                raise ValueError
+        except (ValueError, TypeError):
+            return Response({'error': 'month must be 1–12'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            models = _load_predictive_models()
+        except FileNotFoundError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as exc:
+            logger.exception("Failed to load predictive models")
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        rf         = models['rf']
+        zone_enc   = models['zone_enc']
+        thresholds = models['thresholds']
+        centroids  = models['centroids']   # zone → {'monthly': {m: {'lat':, 'lng':}}, 'fallback': {...}}
+        hotspots   = models['hotspots']    # zone → month → issue → [{'lat', 'lng', 'weight'}, ...]
+
+        # Dept filter for non-admin roles
+        dept_issue  = self.DEPT_ISSUE_MAP.get(role)   # None for ADMIN
+
+        results = []
+        for zone in self.ZONES:
+            # -----------------------------------------------------------------
+            # A. Expected complaints for this month from historical stats
+            # -----------------------------------------------------------------
+            zone_thr = thresholds.get(zone, {})
+            monthly_avg = zone_thr.get('monthly_avg', {})
+            expected = round(monthly_avg.get(month, 0))
+
+            # -----------------------------------------------------------------
+            # B. Risk level from historical percentile thresholds
+            # -----------------------------------------------------------------
+            p33 = zone_thr.get('p33', 0)
+            p66 = zone_thr.get('p66', 0)
+            if expected >= p66:
+                risk_level = 'High'
+            elif expected >= p33:
+                risk_level = 'Medium'
+            else:
+                risk_level = 'Low'
+
+            # -----------------------------------------------------------------
+            # C. Predicted issue type from RF model
+            # -----------------------------------------------------------------
+            try:
+                zone_code = zone_enc.transform([zone])[0]
+            except Exception:
+                zone_code = 0
+
+            # Use peak daytime hour (10 AM) and Monday (0) as representative input
+            X_pred = [[zone_code, month, 10, 0]]
+            predicted_issue = rf.predict(X_pred)[0]
+
+            # Get probabilities for all issues
+            try:
+                probas = rf.predict_proba(X_pred)[0]
+                issue_probs = {
+                    str(rf.classes_[i]): round(float(probas[i]) * 100, 1)
+                    for i in range(len(rf.classes_))
+                }
+                # Sort exactly by probability descending
+                issue_probs = dict(sorted(issue_probs.items(), key=lambda item: item[1], reverse=True))
+            except Exception:
+                issue_probs = {}
+
+            # -----------------------------------------------------------------
+            # D. Dept filtering – skip zones where issue doesn't match
+            # -----------------------------------------------------------------
+            if dept_issue is not None and predicted_issue != dept_issue:
+                # Override predicted issue with dept-specific one
+                # (still return zone so map shows it, but with dept label)
+                predicted_issue = dept_issue
+
+            # -----------------------------------------------------------------
+            # E. Dynamic lat/lng centroid for this zone × month
+            # -----------------------------------------------------------------
+            zone_cent    = centroids.get(zone, {})
+            monthly_cents = zone_cent.get('monthly', {})
+            fallback_cent = zone_cent.get('fallback', {'lat': 11.934, 'lng': 79.833})
+            cent = monthly_cents.get(month, fallback_cent)
+
+            # -----------------------------------------------------------------
+            # F. Exact hotspot locations for this zone × month × predicted_issue
+            # -----------------------------------------------------------------
+            zone_month_hotspots = hotspots.get(zone, {}).get(month, {})
+            # Use predicted_issue as the issue key; fall back to any available issue
+            hotspot_list = zone_month_hotspots.get(predicted_issue, [])
+            if not hotspot_list:
+                # Try to find any issue's hotspots as fallback
+                for _spots in zone_month_hotspots.values():
+                    if _spots:
+                        hotspot_list = _spots
+                        break
+
+            # Normalize hotspot weights so they sum exactly to the zone's expected complaints
+            if expected == 0:
+                hotspot_list = []
+            elif hotspot_list:
+                raw_sum = sum(h.get('weight', 0) for h in hotspot_list)
+                if raw_sum > 0:
+                    normalized_hotspots = []
+                    remaining = expected
+                    sorted_hotspots = sorted(hotspot_list, key=lambda x: x.get('weight', 0), reverse=True)
+                    
+                    for i, h in enumerate(sorted_hotspots):
+                        if i == len(sorted_hotspots) - 1:
+                            scaled_weight = remaining
+                        else:
+                            scaled_weight = int(round((h.get('weight', 0) / raw_sum) * expected))
+                            if scaled_weight <= 0 and remaining > (len(sorted_hotspots) - i - 1):
+                                scaled_weight = 1
+                            remaining -= scaled_weight
+                        
+                        new_h = dict(h)
+                        new_h['weight'] = max(0, scaled_weight)
+                        normalized_hotspots.append(new_h)
+                    hotspot_list = normalized_hotspots
+
+            results.append({
+                'zone':                zone,
+                'predicted_issue':     predicted_issue,
+                'issue_probabilities': issue_probs,
+                'expected_complaints': expected,
+                'risk_level':          risk_level,
+                'address':             self.ZONE_ADDRESSES.get(zone, zone + ', Puducherry'),
+                'latitude':            cent['lat'],
+                'longitude':           cent['lng'],
+                'hotspots':            hotspot_list,   # list of {lat, lng, weight}
+            })
+
+        return Response(results, status=status.HTTP_200_OK)

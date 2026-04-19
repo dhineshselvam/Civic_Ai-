@@ -15,7 +15,7 @@ class ComplaintSerializer(serializers.ModelSerializer):
             'id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
             'predicted_category', 'priority_score', 'priority_label', 'address', 'upvote_count',
             'status', 'assigned_teams', 'assigned_users', 'rating', 'feedback',
-            'created_at', 'updated_at', 'department'
+            'created_at', 'updated_at', 'department', 'genuinity_status', 'sla_deadline'
         ]
 
     def get_assigned_users(self, obj):
@@ -46,6 +46,7 @@ class UserReportSerializer(serializers.ModelSerializer):
     but draws core issue details from the parent Complaint.
     """
     image_url = serializers.SerializerMethodField()
+    complaint_id = serializers.IntegerField(source='complaint.id', read_only=True)
     username = serializers.CharField(source='user.username', read_only=True)
     predicted_category = serializers.CharField(source='complaint.predicted_category', read_only=True)
     priority_score = serializers.IntegerField(source='complaint.priority_score', read_only=True)
@@ -56,16 +57,17 @@ class UserReportSerializer(serializers.ModelSerializer):
     assigned_users = serializers.SerializerMethodField()
     rating = serializers.IntegerField(source='complaint.rating', read_only=True)
     feedback = serializers.CharField(source='complaint.feedback', read_only=True)
+    genuinity_status = serializers.CharField(source='complaint.genuinity_status', read_only=True)
+    sla_deadline = serializers.DateTimeField(source='complaint.sla_deadline', read_only=True)
 
     class Meta:
         model = UserReport
         # Expose the same fields as ComplaintSerializer for seamless frontend integration
-        # Expose the same fields as ComplaintSerializer for seamless frontend integration
         fields = [
-            'id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
+            'id', 'complaint_id', 'image', 'image_url', 'description', 'latitude', 'longitude', 'timestamp',
             'predicted_category', 'priority_score', 'priority_label', 'address', 'upvote_count',
             'status', 'assigned_teams', 'assigned_users', 'rating', 'feedback',
-            'created_at', 'is_original', 'username'
+            'created_at', 'is_original', 'username', 'genuinity_status', 'sla_deadline'
         ]
 
     def get_image_url(self, obj):
@@ -133,3 +135,4 @@ class ComplaintResponseSerializer(serializers.Serializer):
     complaint_id = serializers.IntegerField()
     priority_score = serializers.IntegerField()
     priority_label = serializers.CharField()
+    genuinity_status = serializers.CharField()

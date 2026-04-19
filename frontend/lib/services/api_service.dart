@@ -411,12 +411,24 @@ class ApiService {
     }
     throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
+
+  /// Fetch predictive analysis for a given month (1–12)
+  Future<List<Map<String, dynamic>>> getPredictions(int month) async {
+    final url = '$_baseUrl/api/predictions/?month=$month';
+    final response = await http.get(Uri.parse(url), headers: _headers);
+    if (response.statusCode == 200) {
+      final List<dynamic> list = jsonDecode(response.body);
+      return list.cast<Map<String, dynamic>>();
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
 }
 
 /// Domain model for a Civic Complaint.
 class Complaint {
   const Complaint({
     required this.id,
+    this.complaintId,
     required this.image,
     required this.description,
     required this.latitude,
@@ -437,11 +449,14 @@ class Complaint {
     this.reports,
     this.isOriginal = false,
     this.department,
+    this.genuinityStatus = 'Unverified',
+    this.slaDeadline,
   });
 
   factory Complaint.fromMap(Map<String, dynamic> map) {
     return Complaint(
       id: map['id'] as int,
+      complaintId: map['complaint_id'] as int?,
       image: map['image'] as String? ?? '',
       imageUrl: map['image_url'] as String?,
       description: map['description'] as String? ?? '',
@@ -462,10 +477,13 @@ class Complaint {
       reports: (map['reports'] as List<dynamic>?)?.map((e) => UserReport.fromMap(e)).toList(),
       isOriginal: map['is_original'] as bool? ?? false,
       department: map['department'] as String?,
+      genuinityStatus: map['genuinity_status'] as String? ?? 'Unverified',
+      slaDeadline: map['sla_deadline'] != null ? DateTime.parse(map['sla_deadline'] as String) : null,
     );
   }
 
   final int id;
+  final int? complaintId;
   final String image;
   final String? imageUrl;   // Full absolute URL from backend
   final String description;
@@ -486,6 +504,8 @@ class Complaint {
   final List<UserReport>? reports;
   final bool isOriginal;
   final String? department;
+  final String genuinityStatus;
+  final DateTime? slaDeadline;
 }
 
 /// Represents an individual citizen submission (UserReport layer)
@@ -508,6 +528,8 @@ class UserReport {
     this.upvoteCount,
     this.assignedTeams,
     this.assignedUsers,
+    this.genuinityStatus = 'Unverified',
+    this.slaDeadline,
   });
 
   factory UserReport.fromMap(Map<String, dynamic> map) {
@@ -529,6 +551,8 @@ class UserReport {
       upvoteCount: map['upvote_count'] as int?,
       assignedTeams: (map['assigned_teams'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
       assignedUsers: (map['assigned_users'] as List<dynamic>?)?.map((e) => e as Map<String, dynamic>).toList(),
+      genuinityStatus: map['genuinity_status'] as String? ?? 'Unverified',
+      slaDeadline: map['sla_deadline'] != null ? DateTime.parse(map['sla_deadline'] as String) : null,
     );
   }
 
@@ -549,6 +573,8 @@ class UserReport {
   final int? upvoteCount;
   final List<Map<String, dynamic>>? assignedTeams;
   final List<Map<String, dynamic>>? assignedUsers;
+  final String genuinityStatus;
+  final DateTime? slaDeadline;
 }
 
 /// Response from POST /api/report-issue/
@@ -559,6 +585,7 @@ class ReportSubmitResponse {
     required this.complaintId,
     required this.priorityScore,
     required this.priorityLabel,
+    required this.genuinityStatus,
   });
 
   factory ReportSubmitResponse.fromJson(String jsonString) {
@@ -569,6 +596,7 @@ class ReportSubmitResponse {
       complaintId: map['complaint_id'] as int? ?? 0,
       priorityScore: map['priority_score'] as int? ?? 50,
       priorityLabel: map['priority_label'] as String? ?? 'Medium',
+      genuinityStatus: map['genuinity_status'] as String? ?? 'Unverified',
     );
   }
 
@@ -577,6 +605,7 @@ class ReportSubmitResponse {
   final int complaintId;
   final int priorityScore;
   final String priorityLabel;
+  final String genuinityStatus;
 }
 
 class ApiException implements Exception {

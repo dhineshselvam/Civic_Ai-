@@ -23,6 +23,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   final _addressController = TextEditingController();
+  final _demoLatController = TextEditingController();
+  final _demoLngController = TextEditingController();
   final ApiService _api = ApiService();
 
   dynamic _image; 
@@ -32,6 +34,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   DateTime _timestamp = DateTime.now();
   bool _loading = false;
   bool _isLocationLoading = false;
+  bool _isDemoMode = false;
+  bool _isMovePinMode = false;
   String? _successMessage;
   String? _predictedCategory;
   String? _error;
@@ -46,6 +50,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   void dispose() {
     _descriptionController.dispose();
     _addressController.dispose();
+    _demoLatController.dispose();
+    _demoLngController.dispose();
     super.dispose();
   }
 
@@ -116,6 +122,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         minHeight: 1024,
         minWidth: 1024,
         quality: 80,
+        keepExif: true,
       );
       return result;
     } catch (e) {
@@ -124,59 +131,68 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   }
 
   Future<void> _pickImage() async {
-    if (kIsWeb) {
-      final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
-      if (result == null || result.files.isEmpty) return;
-      final file = result.files.single;
-      setState(() {
-        _image = file.bytes;
-        _imageName = file.name;
-        _error = null;
-      });
-    } else {
-      final source = await showModalBottomSheet<ImageSource>(
-        context: context,
-        backgroundColor: AppTheme.cardBackground,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
-        ),
-        builder: (context) => Container(
-          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textMediumContrast.withOpacity(0.5), borderRadius: BorderRadius.circular(2))),
-              const SizedBox(height: 24),
-              ListTile(
-                leading: const CircleAvatar(backgroundColor: AppTheme.primaryBlue, child: Icon(Icons.camera_alt, color: AppTheme.textHighContrast)),
-                title: Text('Capture with Camera', style: Theme.of(context).textTheme.bodyLarge),
-                onTap: () => Navigator.pop(context, ImageSource.camera),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                leading: const CircleAvatar(backgroundColor: AppTheme.accentTeal, child: Icon(Icons.photo_library, color: AppTheme.darkBackground)),
-                title: Text('Pick from Gallery', style: Theme.of(context).textTheme.bodyLarge),
-                onTap: () => Navigator.pop(context, ImageSource.gallery),
-              ),
-              const SizedBox(height: 16),
-            ],
+    ImageSource source = ImageSource.camera;
+
+    if (_isDemoMode) {
+      if (kIsWeb) {
+        final result = await FilePicker.platform.pickFiles(type: FileType.image, withData: true);
+        if (result == null || result.files.isEmpty) return;
+        final file = result.files.single;
+        setState(() {
+          _image = file.bytes;
+          _imageName = file.name;
+          _error = null;
+        });
+        return;
+      } else {
+        final selectedSource = await showModalBottomSheet<ImageSource>(
+          context: context,
+          backgroundColor: AppTheme.cardBackground,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.only(topLeft: Radius.circular(24), topRight: Radius.circular(24)),
           ),
-        ),
-      );
-      if (source == null) return;
-      final picker = ImagePicker();
-      final xFile = await picker.pickImage(source: source);
-      if (xFile == null) return;
-
-      final originalBytes = await xFile.readAsBytes();
-      final compressedBytes = await _compressImage(originalBytes);
-
-      setState(() {
-        _image = compressedBytes;
-        _imageName = xFile.name;
-        _error = null;
-      });
+          builder: (context) => Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(width: 40, height: 4, decoration: BoxDecoration(color: AppTheme.textMediumContrast.withOpacity(0.5), borderRadius: BorderRadius.circular(2))),
+                const SizedBox(height: 24),
+                ListTile(
+                  leading: const CircleAvatar(backgroundColor: AppTheme.primaryBlue, child: Icon(Icons.camera_alt, color: AppTheme.textHighContrast)),
+                  title: Text('Capture with Camera', style: Theme.of(context).textTheme.bodyLarge),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const CircleAvatar(backgroundColor: AppTheme.accentTeal, child: Icon(Icons.photo_library, color: AppTheme.darkBackground)),
+                  title: Text('Pick from Gallery (Demo)', style: Theme.of(context).textTheme.bodyLarge),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
+          ),
+        );
+        if (selectedSource == null) return;
+        source = selectedSource;
+      }
+    } else {
+      source = ImageSource.camera;
     }
+
+    final picker = ImagePicker();
+    final xFile = await picker.pickImage(source: source);
+    if (xFile == null) return;
+
+    final originalBytes = await xFile.readAsBytes();
+    final compressedBytes = await _compressImage(originalBytes);
+
+    setState(() {
+      _image = compressedBytes;
+      _imageName = xFile.name;
+      _error = null;
+    });
   }
 
   void _onLocationSelected(double lat, double lng) {
@@ -233,6 +249,20 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
   }
 
   void _showSuccessResult(ReportSubmitResponse response) {
+    IconData statusIcon = Icons.help_outline;
+    Color statusColor = AppTheme.textMediumContrast;
+    
+    if (response.genuinityStatus == 'Verified') {
+      statusIcon = Icons.verified_user;
+      statusColor = AppTheme.successGreen;
+    } else if (response.genuinityStatus == 'Flagged') {
+      statusIcon = Icons.warning_amber_rounded;
+      statusColor = AppTheme.dangerRed;
+    } else {
+      statusIcon = Icons.info_outline;
+      statusColor = AppTheme.warningOrange;
+    }
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -247,11 +277,7 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
               borderRadius: BorderRadius.circular(24),
               border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3), width: 1.5),
               boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.5),
-                  blurRadius: 30,
-                  offset: const Offset(0, 10),
-                )
+                BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 30, offset: const Offset(0, 10))
               ],
             ),
             child: Column(
@@ -262,6 +288,30 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
                 const Text('REPORT SUBMITTED', style: TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.bold, fontSize: 22, letterSpacing: 1.5, fontFamily: 'Outfit')),
                 const SizedBox(height: 12),
                 Text('AI detected this issue as: ${response.predictedCategory}', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: 24),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: statusColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: statusColor.withOpacity(0.5)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(statusIcon, color: statusColor, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Location: ${response.genuinityStatus}',
+                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ),
+                if (response.genuinityStatus == 'Unverified') ...[
+                  const SizedBox(height: 12),
+                  const Text('For faster resolution, please enable Location Tags in your camera settings next time.', textAlign: TextAlign.center, style: TextStyle(fontSize: 13, color: AppTheme.textMediumContrast)),
+                ],
                 const SizedBox(height: 32),
                 SizedBox(
                   width: double.infinity,
@@ -383,19 +433,53 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
               selectedLat: _latitude,
               selectedLng: _longitude,
               onLocationSelected: _onLocationSelected,
+              // Allow tap-to-place only when the Move Pin button is active in demo mode
+              readOnly: !_isMovePinMode,
             ),
           ),
         ),
         Positioned(
           top: 16,
           right: 16,
-          child: FloatingActionButton.small(
-            onPressed: _isLocationLoading ? null : _getCurrentLocation,
-            backgroundColor: AppTheme.primaryBlue,
-            elevation: 4,
-            child: _isLocationLoading
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textHighContrast))
-                : const Icon(Icons.my_location, color: AppTheme.textHighContrast),
+          child: Column(
+            children: [
+              FloatingActionButton.small(
+                onPressed: _isLocationLoading ? null : _getCurrentLocation,
+                backgroundColor: AppTheme.primaryBlue,
+                elevation: 4,
+                child: _isLocationLoading
+                    ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.textHighContrast))
+                    : const Icon(Icons.my_location, color: AppTheme.textHighContrast),
+              ),
+              // Move Pin Button – only visible in demo mode
+              if (_isDemoMode) ...[
+                const SizedBox(height: 10),
+                Tooltip(
+                  message: _isMovePinMode ? 'Tap anywhere on the map to move the pin' : 'Enable manual pin placement',
+                  child: FloatingActionButton.small(
+                    heroTag: 'movePinBtn',
+                    onPressed: () => setState(() => _isMovePinMode = !_isMovePinMode),
+                    backgroundColor: _isMovePinMode ? const Color(0xFF00BFA5) : AppTheme.cardBackground,
+                    elevation: 4,
+                    child: Icon(
+                      _isMovePinMode ? Icons.push_pin : Icons.push_pin_outlined,
+                      color: _isMovePinMode ? Colors.white : AppTheme.accentTeal,
+                      size: 20,
+                    ),
+                  ),
+                ),
+                if (_isMovePinMode)
+                  Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF00BFA5).withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text('Tap to move', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+              ],
+            ],
           ),
         ),
       ],
@@ -406,6 +490,76 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Demo Mode Toggle
+        SwitchListTile(
+          title: const Text('Demo Mode (Gallery Upload)', style: TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.w500)),
+          subtitle: const Text('Enables Gallery upload for testing EXIF image metadata', style: TextStyle(color: AppTheme.textMediumContrast, fontSize: 13)),
+          value: _isDemoMode,
+          activeColor: AppTheme.accentTeal,
+          onChanged: (val) => setState(() {
+            _isDemoMode = val;
+            // Reset move pin mode when demo mode is disabled
+            if (!val) _isMovePinMode = false;
+          }),
+          contentPadding: EdgeInsets.zero,
+        ),
+        
+        if (_isDemoMode)
+          Container(
+            margin: const EdgeInsets.only(top: 8, bottom: 16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppTheme.accentTeal.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: AppTheme.accentTeal.withOpacity(0.3)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Demo Map Jump Tool', style: TextStyle(color: AppTheme.accentTeal, fontWeight: FontWeight.bold, fontSize: 14)),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: TextFormField(
+                      controller: _demoLatController,
+                      style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 14),
+                      decoration: const InputDecoration(labelText: 'CSV Latitude (e.g. 40.71)', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                    )),
+                    const SizedBox(width: 12),
+                    Expanded(child: TextFormField(
+                      controller: _demoLngController,
+                      style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 14),
+                      decoration: const InputDecoration(labelText: 'CSV Longitude (e.g. -74.00)', contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                    )),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    final lat = double.tryParse(_demoLatController.text);
+                    final lng = double.tryParse(_demoLngController.text);
+                    if (lat != null && lng != null) {
+                      _onLocationSelected(lat, lng);
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Map Pin Moved to Coordinates!', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.successGreen));
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Invalid Coordinates', style: TextStyle(color: Colors.white)), backgroundColor: AppTheme.dangerRed));
+                    }
+                  },
+                  icon: const Icon(Icons.my_location, size: 18),
+                  label: const Text('Move Map Pin Here'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.primaryBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        const SizedBox(height: 16),
+
         // Upload Image
         _buildSectionHeader('Visual Evidence', Icons.camera_enhance),
         const SizedBox(height: 16),

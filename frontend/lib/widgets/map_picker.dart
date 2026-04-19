@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-/// Enhanced Interactive OSM map for location selection.
+/// Interactive OSM map that displays a location pin.
+/// When [readOnly] is true (default), the pin cannot be moved by tapping —
+/// it is controlled exclusively by GPS or demo-mode coordinates.
 class MapPicker extends StatefulWidget {
   const MapPicker({
     super.key,
@@ -11,6 +13,7 @@ class MapPicker extends StatefulWidget {
     this.onLocationSelected,
     this.selectedLat,
     this.selectedLng,
+    this.readOnly = true,
   });
 
   final LatLng? initialCenter;
@@ -18,6 +21,8 @@ class MapPicker extends StatefulWidget {
   final void Function(double latitude, double longitude)? onLocationSelected;
   final double? selectedLat;
   final double? selectedLng;
+  /// When true the user cannot tap/drag to reposition the pin.
+  final bool readOnly;
 
   @override
   State<MapPicker> createState() => _MapPickerState();
@@ -46,7 +51,10 @@ class _MapPickerState extends State<MapPicker> {
   }
 
   void _onTap(TapPosition position, LatLng point) {
-    widget.onLocationSelected?.call(point.latitude, point.longitude);
+    // Only allow pin placement when NOT in read-only mode
+    if (!widget.readOnly) {
+      widget.onLocationSelected?.call(point.latitude, point.longitude);
+    }
   }
 
   @override
@@ -64,14 +72,18 @@ class _MapPickerState extends State<MapPicker> {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(20),
-        child: FlutterMap(
+        child: Stack(
+          children: [
+            FlutterMap(
           mapController: _mapController,
           options: MapOptions(
             initialCenter: _center!,
             initialZoom: widget.initialZoom,
-            onTap: _onTap,
+            // Tap is only functional when readOnly = false
+            onTap: widget.readOnly ? null : _onTap,
             interactionOptions: const InteractionOptions(
-              flags: InteractiveFlag.all,
+              // Allow pan, pinch zoom, double-tap zoom, and mouse scroll wheel zoom.
+              flags: InteractiveFlag.drag | InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom | InteractiveFlag.scrollWheelZoom,
             ),
           ),
           children: [
@@ -118,6 +130,76 @@ class _MapPickerState extends State<MapPicker> {
                 ],
               ),
           ],
+            ),
+            // Zoom controls (top-left)
+            Positioned(
+              top: 12,
+              left: 12,
+              child: Column(
+                children: [
+                  _ZoomButton(
+                    icon: Icons.add,
+                    onTap: () {
+                      final cam = _mapController.camera;
+                      _mapController.move(cam.center, (cam.zoom + 1).clamp(1.0, 18.0));
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  _ZoomButton(
+                    icon: Icons.remove,
+                    onTap: () {
+                      final cam = _mapController.camera;
+                      _mapController.move(cam.center, (cam.zoom - 1).clamp(1.0, 18.0));
+                    },
+                  ),
+                ],
+              ),
+            ),
+            // Lock-icon overlay: tells the user the pin position is automatic
+            if (widget.readOnly)
+              Positioned(
+                bottom: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.55),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock_outline, color: Colors.white70, size: 14),
+                      SizedBox(width: 6),
+                      Text('Location set by GPS', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ZoomButton extends StatelessWidget {
+  const _ZoomButton({required this.icon, required this.onTap});
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.black.withOpacity(0.55),
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: SizedBox(
+          width: 36,
+          height: 36,
+          child: Icon(icon, color: Colors.white, size: 20),
         ),
       ),
     );

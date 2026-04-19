@@ -11,7 +11,9 @@ media/
 staticfiles/
 *.sqlite3-journal
 *.env
-
+*.csv
+*.pkl
+images_pic/
 # Django migrations
 */migrations/*.py
 */migrations/*.pyc
@@ -48,7 +50,8 @@ build/
 .pub-cache/
 .pub/
 .metadata
-android/.gradle/
+frontend/android/.gradle/
+**/android/.gradle/
 android/local.properties
 pubspec.lock
 

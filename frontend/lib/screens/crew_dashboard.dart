@@ -92,6 +92,14 @@ class _PremiumTaskCard extends StatelessWidget {
   final Complaint task;
   final VoidCallback onUpdate;
 
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inDays == 0) return "Today";
+    if (diff.inDays == 1) return "Yesterday";
+    return "${date.day}/${date.month}/${date.year}";
+  }
+
   @override
   Widget build(BuildContext context) {
     final statusColor = task.status == 'Resolved' ? Colors.tealAccent : Colors.orangeAccent;
@@ -140,6 +148,17 @@ class _PremiumTaskCard extends StatelessWidget {
                                       letterSpacing: 0.5,
                                     ),
                                   ),
+                                  if (task.slaDeadline != null) ...[
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.timer_outlined, color: task.status == 'Resolved' ? Colors.tealAccent : Colors.orangeAccent, size: 10),
+                                        const SizedBox(width: 4),
+                                        Text('SLA: ${_formatDate(task.slaDeadline!)}',
+                                            style: TextStyle(color: task.status == 'Resolved' ? Colors.tealAccent : Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ],
                                 ],
                               ),
                               Row(

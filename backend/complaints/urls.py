@@ -3,11 +3,13 @@ from .views import (
     ComplaintListView,
     ComplaintDetailView,
     DashboardStatsView,
+    SLABreachLogListView,
     CityAnalyticsView,
     CrewListView,
     HighPriorityView,
     AutoAssignView,
     ManageAssignmentView,
+    PredictiveAnalysisView,
 )
 from django.urls import path
 
@@ -17,10 +19,12 @@ urlpatterns = [
     path('complaints/<int:pk>/', ComplaintDetailView.as_view(), name='complaint-detail'),
     path('complaints/<int:pk>/feedback/', ComplaintDetailView.as_view(), name='complaint-feedback'),
     path('complaints/<int:pk>/assign/', ComplaintDetailView.as_view(), name='complaint-assign'),
-    path('complaints/<int:pk>/manage-crew/', ManageAssignmentView.as_view(), name='complaint-manage-crew'), # Added manage-crew path
+    path('complaints/<int:pk>/manage-crew/', ManageAssignmentView.as_view(), name='complaint-manage-crew'),
     path('complaints/<int:pk>/auto-assign/', AutoAssignView.as_view(), name='complaint-auto-assign'),
     path('dashboard/stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
+    path('sla-breach-logs/', SLABreachLogListView.as_view(), name='sla-breach-logs'),
     path('analytics/', CityAnalyticsView.as_view(), name='city-analytics'),
     path('crew/', CrewListView.as_view(), name='crew-list'),
     path('high-priority/', HighPriorityView.as_view(), name='high-priority'),
+    path('predictions/', PredictiveAnalysisView.as_view(), name='predictive-analysis'),
 ]
