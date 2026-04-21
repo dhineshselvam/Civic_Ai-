@@ -198,17 +198,6 @@ class _PremiumComplaintCard extends StatelessWidget {
                                 _formatDate(complaint.createdAt),
                                 style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 13),
                               ),
-                              if (complaint.slaDeadline != null) ...[
-                                const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Icon(Icons.timer_outlined, color: complaint.status == 'Resolved' ? AppTheme.successGreen : AppTheme.dangerRed, size: 12),
-                                    const SizedBox(width: 4),
-                                    Text('SLA: ${_formatDate(complaint.slaDeadline!)}',
-                                        style: TextStyle(color: complaint.status == 'Resolved' ? AppTheme.successGreen : AppTheme.dangerRed, fontSize: 11, fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                              ],
                             ],
                           ),
                         ),

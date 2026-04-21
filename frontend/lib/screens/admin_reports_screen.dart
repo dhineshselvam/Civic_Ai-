@@ -509,18 +509,24 @@ class _AdminReportCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                   ],
-                  // ASSIGN CREW — on Verified tab only
+                  // ASSIGN CREW / AUTO DISPATCH / RESOLVE — on Verified tab only
                   if (cardType == _CardType.verified) ...[
-                    Expanded(
-                      child: _actionBtn(
-                        'ASSIGN CREW',
-                        Icons.engineering_rounded,
-                        Colors.purpleAccent,
-                        () => _showAssignDialog(context),
+                    if (!isAssigned) ...[
+                      // Not yet assigned: show manual assign + auto dispatch
+                      Expanded(
+                        child: _actionBtn(
+                          'ASSIGN CREW',
+                          Icons.engineering_rounded,
+                          Colors.purpleAccent,
+                          () => _showAssignDialog(context),
+                        ),
                       ),
-                    ),
-                    if (isAssigned) ...[
                       const SizedBox(width: 12),
+                      Expanded(
+                        child: _autoDispatchBtn(context),
+                      ),
+                    ] else ...[
+                      // Already assigned: show resolve
                       Expanded(
                         child: _actionBtn(
                           'RESOLVE',
@@ -535,6 +541,21 @@ class _AdminReportCard extends StatelessWidget {
                     ],
                   ],
                 ],
+              ),
+            ),
+          // ── Remove Report — resolved spam only ──────────────────────────────
+          if (cardType == _CardType.resolved &&
+              report.predicted_category.toLowerCase() == 'spam')
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              child: SizedBox(
+                width: double.infinity,
+                child: _actionBtn(
+                  'REMOVE REPORT',
+                  Icons.delete_forever_rounded,
+                  AppTheme.dangerRed,
+                  () => _confirmAndDelete(context),
+                ),
               ),
             ),
         ],
@@ -555,6 +576,110 @@ class _AdminReportCard extends StatelessWidget {
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    );
+  }
+
+  Widget _autoDispatchBtn(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: () async {
+        try {
+          final msg = await _api.autoAssignComplaint(report.id);
+          onRefresh();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(msg,
+                    style: const TextStyle(
+                        color: AppTheme.textHighContrast,
+                        fontWeight: FontWeight.bold)),
+                backgroundColor: AppTheme.primaryBlue,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                  content: Text('Auto-dispatch failed.'),
+                  backgroundColor: AppTheme.dangerRed),
+            );
+          }
+        }
+      },
+      icon: const Icon(Icons.send_rounded, size: 16),
+      label: const Text('AUTO DISPATCH',
+          style: TextStyle(
+              fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppTheme.dangerRed.withOpacity(0.15),
+        foregroundColor: AppTheme.dangerRed,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    );
+  }
+
+  void _confirmAndDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.delete_forever_rounded, color: AppTheme.dangerRed, size: 24),
+            SizedBox(width: 10),
+            Text('Remove Spam Report'),
+          ],
+        ),
+        content: Text(
+          'This will permanently delete Report #${report.id} (${report.predicted_category.toUpperCase()}).\n\nThis action cannot be undone.',
+          style: const TextStyle(color: AppTheme.textHighContrast, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await _api.deleteComplaint(report.id);
+                onRefresh();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Spam report #${report.id} removed successfully.',
+                        style: const TextStyle(color: AppTheme.textHighContrast, fontWeight: FontWeight.bold),
+                      ),
+                      backgroundColor: AppTheme.successGreen,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to remove: $e', style: const TextStyle(color: Colors.white)),
+                      backgroundColor: AppTheme.dangerRed,
+                    ),
+                  );
+                }
+              }
+            },
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('REMOVE', style: TextStyle(fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.dangerRed,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+          ),
+        ],
       ),
     );
   }

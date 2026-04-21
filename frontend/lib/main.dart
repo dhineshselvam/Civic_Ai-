@@ -102,6 +102,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         CrewManagementScreen(),
         CityAnalyticsScreen(),
         const PredictiveAnalysisScreen(),
+        const NotificationInboxScreen(),
         ProfileScreen(onLogout: _logout),
       ];
     } else {
@@ -122,6 +123,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded, size: 26), label: 'Crew'),
         BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded, size: 26), label: 'Analytics'),
         BottomNavigationBarItem(icon: Icon(Icons.auto_graph_rounded, size: 26), label: 'Predict'),
+        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded, size: 26), label: 'Alerts'),
         BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
       ];
     } else {

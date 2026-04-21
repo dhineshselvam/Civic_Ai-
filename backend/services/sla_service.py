@@ -51,10 +51,18 @@ logger = logging.getLogger(__name__)
 
 # SLA_HOURS must mirror _SLA_TIER_HOURS in complaints/models.py
 SLA_HOURS: dict[str, int] = {
-    "Critical": 3,
-    "High": 8,
-    "Medium": 24,
-    "Low": 72,
+    "Critical": 0.1,
+    "High": 0.2,
+    "Medium": 0.3,
+    "Low": 0.4,
+}
+
+# Response-phase hours: must mirror _RESPONSE_HOURS in complaints/models.py
+RESPONSE_HOURS: dict[str, int] = {
+    "Critical": 0.05,
+    "High": 0.1,
+    "Medium": 0.15,
+    "Low": 0.2,
 }
 
 # Per-tier window (minutes before deadline) at which we trigger escalation.
@@ -219,12 +227,14 @@ def mock_sms_alert(complaint, reason: str) -> None:
     print(f"\n[SMS MOCK] Complaint #{complaint.pk} | {reason} | Phone: {phone or 'N/A'}\n")
 
 
-def _send_in_app_notification(complaint, title: str, message: str) -> None:
+def _send_in_app_notification(
+    complaint, title: str, message: str, notification_type: str = "general"
+) -> None:
     """Send an in-app notification via the existing notification service."""
     try:
         from complaints.notification_service import send_notification
         if complaint.user:
-            send_notification(complaint.user, title, message)
+            send_notification(complaint.user, title, message, notification_type=notification_type)
     except Exception as exc:  # pylint: disable=broad-except
         logger.error(
             "SLA in-app notification failed for complaint #%s: %s", complaint.pk, exc
@@ -271,12 +281,37 @@ def run_sla_check() -> dict:
     pre_breach_qs  = active_qs.filter(sla_deadline__gt=now)
 
     # Accumulators
-    escalated_complaints:  list = []
-    breach_notified_ids:   list = []
-    log_entries:           list = []
+    escalated_complaints:       list = []
+    breach_notified_ids:        list = []
+    response_notified_ids:      list = []   # NEW: response-phase tracker
+    resolution_notified_ids:    list = []   # NEW: resolution-breach tracker
+    log_entries:                list = []
 
     # ------------------------------------------------------------------
-    # PASS 1 — Breach handling
+    # PASS 0 — Response Phase (new dual-layer logic)
+    # Fire a warning notification when response_deadline has passed and
+    # response_notified is still False.  No escalation, no sla_deadline changes.
+    # ------------------------------------------------------------------
+    response_overdue_qs = active_qs.filter(
+        response_deadline__isnull=False,
+        response_deadline__lte=now,
+        response_notified=False,
+    )
+    for complaint in response_overdue_qs:
+        _send_in_app_notification(
+            complaint,
+            "⚡ Response Deadline Passed",
+            (
+                f"Complaint #{complaint.pk} ({complaint.predicted_category}) has passed its "
+                f"response deadline. Please ensure an initial response is recorded."
+            ),
+            notification_type="response_warning",
+        )
+        response_notified_ids.append(complaint.pk)
+        logger.info("Response deadline passed for complaint #%s", complaint.pk)
+
+    # ------------------------------------------------------------------
+    # PASS 1 — Breach handling (existing logic, unchanged)
     # ------------------------------------------------------------------
     for complaint in breached_qs:
         if complaint.sla_breach_notified:
@@ -289,11 +324,16 @@ def run_sla_check() -> dict:
         log_entries.append(SLABreachLog(complaint=complaint, reason=reason))
         breach_notified_ids.append(complaint.pk)
 
+        # Only send resolution_notified once (guards duplicate in-app breach alerts)
+        if not complaint.resolution_notified:
+            resolution_notified_ids.append(complaint.pk)
+
         # In-app breach notification
         _send_in_app_notification(
             complaint,
             "⚠️ SLA Breach",
             f"Complaint #{complaint.pk} ({complaint.predicted_category}) has breached its SLA.",
+            notification_type="breach",
         )
 
         # Email alert
@@ -353,6 +393,7 @@ def run_sla_check() -> dict:
                 f"Complaint #{complaint.pk} ({complaint.predicted_category}) has been escalated "
                 f"from {old_tier} to {new_tier} priority. Please take action before the SLA deadline."
             ),
+            notification_type="resolution_warning",
         )
         logger.info(
             "Escalated complaint #%s: %s→%s (trigger window: %d min)",
@@ -374,6 +415,16 @@ def run_sla_check() -> dict:
             sla_breach_notified=True
         )
 
+    if response_notified_ids:
+        Complaint.objects.filter(pk__in=response_notified_ids).update(
+            response_notified=True
+        )
+
+    if resolution_notified_ids:
+        Complaint.objects.filter(pk__in=resolution_notified_ids).update(
+            resolution_notified=True
+        )
+
     if log_entries:
         SLABreachLog.objects.bulk_create(log_entries)
 
@@ -387,11 +438,12 @@ def run_sla_check() -> dict:
     ).count()
 
     summary = {
-        "checked":            active_qs.count(),
-        "breached":           breached_qs.count(),
-        "breach_notified":    len(breach_notified_ids),
-        "escalated":          len(escalated_complaints),
-        "near_deadline":      near_deadline_count,
+        "checked":                  active_qs.count(),
+        "breached":                 breached_qs.count(),
+        "breach_notified":          len(breach_notified_ids),
+        "escalated":                len(escalated_complaints),
+        "near_deadline":            near_deadline_count,
+        "response_phase_notified":  len(response_notified_ids),   # NEW
         # Legacy key kept for backward compat with dashboard stats view
         "final_breach_logged": len(breach_notified_ids),
     }

@@ -136,6 +136,20 @@ class NotificationListView(APIView):
         request.user.notifications.filter(is_read=False).update(is_read=True)
         return Response({'message': 'All notifications marked as read'})
 
+
+class NotificationDetailView(APIView):
+    """POST /api/users/notifications/<id>/read/ — mark a single notification as read."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            notification = request.user.notifications.get(pk=pk)
+            notification.is_read = True
+            notification.save(update_fields=['is_read'])
+            return Response({'message': 'Notification marked as read'})
+        except Notification.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
 class CrewRegistrationView(APIView):
     """Register field crew members. Admins can register any; dept admins register for their dept."""
     permission_classes = [permissions.IsAuthenticated]

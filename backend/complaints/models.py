@@ -13,6 +13,14 @@ _SLA_TIER_HOURS = {
     'Low': 72,
 }
 
+# Response-phase hours: target for initial response (≈ 50% of resolution window)
+_RESPONSE_HOURS = {
+    'Critical': 1,
+    'High': 4,
+    'Medium': 12,
+    'Low': 36,
+}
+
 
 class Complaint(models.Model):
     """Civic issue report with image, location, and AI-predicted category."""
@@ -63,6 +71,22 @@ class Complaint(models.Model):
     last_escalated_at = models.DateTimeField(
         null=True, blank=True,
         help_text="Set each time priority is escalated by the SLA scheduler"
+    )
+    # Dual-layer SLA: Response phase -----------------------------------
+    # Deadline by which an initial response must be made (≈ 50% of resolution window).
+    response_deadline = models.DateTimeField(
+        null=True, blank=True,
+        help_text="Set ONCE at creation (created_at + response hours). Response-phase deadline."
+    )
+    # True once a response-warning notification has been sent (avoids duplicates).
+    response_notified = models.BooleanField(
+        default=False,
+        help_text="True once a response-phase warning notification has been dispatched"
+    )
+    # True once a resolution breach notification has been sent (distinct from sla_breach_notified email).
+    resolution_notified = models.BooleanField(
+        default=False,
+        help_text="True once a resolution-breach in-app notification has been dispatched"
     )
     # ---------------------------------------------------------------------
     upvote_count = models.IntegerField(default=1)
@@ -144,11 +168,17 @@ class Complaint(models.Model):
             self.department = 'GENERAL'
 
     def _compute_sla_deadline(self):
-        """Return the deadline datetime using priority_label and created_at."""
+        """Return the resolution deadline datetime using priority_label and created_at."""
         # created_at is set by auto_now_add, so it may not be populated yet for
         # brand-new instances; fall back to now() in that case.
         base = self.created_at or timezone.now()
         hours = _SLA_TIER_HOURS.get(self.priority_label, 72)
+        return base + timedelta(hours=hours)
+
+    def _compute_response_deadline(self):
+        """Return the response-phase deadline (≈ 50% of resolution window)."""
+        base = self.created_at or timezone.now()
+        hours = _RESPONSE_HOURS.get(self.priority_label, 36)
         return base + timedelta(hours=hours)
 
     def save(self, *args, **kwargs):
@@ -183,10 +213,14 @@ class Complaint(models.Model):
 
         super().save(*args, **kwargs)
 
-        # Set sla_deadline after first save (created_at is now populated)
+        # Set sla_deadline and response_deadline after first save (created_at is now populated)
         if is_new and not self.sla_deadline:
             self.sla_deadline = self._compute_sla_deadline()
-            Complaint.objects.filter(pk=self.pk).update(sla_deadline=self.sla_deadline)
+            self.response_deadline = self._compute_response_deadline()
+            Complaint.objects.filter(pk=self.pk).update(
+                sla_deadline=self.sla_deadline,
+                response_deadline=self.response_deadline,
+            )
 
         if is_new:
             loc_count = getattr(self, '_temp_sensitive_count', 0)

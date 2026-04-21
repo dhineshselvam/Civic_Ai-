@@ -65,5 +65,5 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ['id', 'title', 'message', 'is_read', 'created_at']
+        fields = ['id', 'title', 'message', 'type', 'is_read', 'created_at']
 

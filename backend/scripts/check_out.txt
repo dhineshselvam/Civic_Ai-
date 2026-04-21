@@ -1,0 +1,113 @@
+﻿14 objects imported automatically (use -v 2 for details).
+
+Admin user: admin1 (id=2)
+
+--- Notification counts by type ---
+  breach                   : 2
+  resolution_warning       : 2
+  response_warning         : 6
+  TOTAL                    : 10
+
+--- Last 4 demo complaints ---
+  #66 Critical  user=2 resp_notified=True sla_notified=True  [BREACH]
+         resp_dl  = 2026-04-20 03:25:31.751682+00:00
+         sla_dl   = 2026-04-20 05:25:31.751682+00:00
+         created  = 2026-04-20 02:25:31.751682+00:00
+  #65 High      user=2 resp_notified=True sla_notified=False  [RESP_WARN]
+         resp_dl  = 2026-04-19 20:55:31.751682+00:00
+         sla_dl   = 2026-04-20 08:55:31.751682+00:00
+         created  = 2026-04-19 08:55:31.751682+00:00
+  #64 High      user=2 resp_notified=True sla_notified=False  [RESP_WARN]
+         resp_dl  = 2026-04-20 05:25:31.751682+00:00
+         sla_dl   = 2026-04-20 09:25:31.751682+00:00
+         created  = 2026-04-20 01:25:31.751682+00:00
+  #63 High      user=2 resp_notified=False sla_notified=False  [NORMAL]
+         resp_dl  = 2026-04-20 09:52:31.751682+00:00
+         sla_dl   = 2026-04-20 13:52:31.751682+00:00
+         created  = 2026-04-20 05:52:31.751682+00:00
+
+--- Last 8 notifications (newest first) ---
+.\venv\Scripts\python.exe : 
+Traceback (most recent call 
+last):
+At line:1 char:1
++ .\venv\Scripts\python.exe 
+manage.py shell -c 
+"exec(open('scripts/chec ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~
+    + CategoryInfo           
+   : NotSpecified: (Traceba  
+  ck (most recent call las   
+ t)::String) [], RemoteEx    
+ception
+    + FullyQualifiedErrorId  
+   : NativeCommandError
+ 
+  File "C:\Users\Hp\Desktop\P
+roject\backend\manage.py", 
+line 22, in <module>
+    main()
+  File "C:\Users\Hp\Desktop\P
+roject\backend\manage.py", 
+line 18, in main
+    execute_from_command_line
+(sys.argv)
+  File "C:\Users\Hp\Desktop\P
+roject\backend\venv\Lib\site-
+packages\django\core\manageme
+nt\__init__.py", line 442, 
+in execute_from_command_line
+    utility.execute()
+  File "C:\Users\Hp\Desktop\P
+roject\backend\venv\Lib\site-
+packages\django\core\manageme
+nt\__init__.py", line 436, 
+in execute
+    self.fetch_command(subcom
+mand).run_from_argv(self.argv
+)
+  File "C:\Users\Hp\Desktop\P
+roject\backend\venv\Lib\site-
+packages\django\core\manageme
+nt\base.py", line 420, in 
+run_from_argv
+    self.execute(*args, 
+**cmd_options)
+  File "C:\Users\Hp\Desktop\P
+roject\backend\venv\Lib\site-
+packages\django\core\manageme
+nt\base.py", line 464, in 
+execute
+    output = 
+self.handle(*args, **options)
+             
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\Hp\Desktop\P
+roject\backend\venv\Lib\site-
+packages\django\core\manageme
+nt\commands\shell.py", line 
+247, in handle
+    exec(options["command"], 
+{**globals(), **self.get_name
+space(**options)})
+  File "<string>", line 1, 
+in <module>
+  File "<string>", line 31, 
+in <module>
+  File "C:\Users\Hp\AppData\L
+ocal\Programs\Python\Python31
+1\Lib\encodings\cp1252.py", 
+line 19, in encode
+    return codecs.charmap_enc
+ode(input,self.errors,encodin
+g_table)[0]
+           ^^^^^^^^^^^^^^^^^^
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+^^^^^^^^
+UnicodeEncodeError: 
+'charmap' codec can't encode 
+character '\u23f0' in 
+position 27: character maps 
+to <undefined>

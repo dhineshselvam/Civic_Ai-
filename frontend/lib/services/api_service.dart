@@ -182,6 +182,17 @@ class ApiService {
     }
   }
 
+  /// Mark a single notification as read
+  Future<void> markNotificationRead(int id) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/notifications/$id/read/'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
   /// Fetch user profile (includes trust score)
   Future<Map<String, dynamic>> getProfile() async {
     final response = await http.get(Uri.parse('$_baseUrl/api/users/profile/'), headers: _headers);
@@ -379,6 +390,17 @@ class ApiService {
       body: jsonEncode({'rating': rating, 'feedback': feedback}),
     );
     if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
+  /// Permanently delete a resolved spam complaint (Admin / Dept only)
+  Future<void> deleteComplaint(int id) async {
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/api/complaints/$id/'),
+      headers: _headers,
+    );
+    if (response.statusCode != 204) {
       throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
     }
   }

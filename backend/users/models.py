@@ -103,9 +103,21 @@ class PasswordResetToken(models.Model):
 
 class Notification(models.Model):
     """Truly free in-app notification store."""
+    NOTIFICATION_TYPE_CHOICES = [
+        ('general', 'General'),
+        ('response_warning', 'Response Warning'),
+        ('resolution_warning', 'Resolution Warning'),
+        ('breach', 'Breach'),
+    ]
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='notifications')
     title = models.CharField(max_length=255)
     message = models.TextField()
+    type = models.CharField(
+        max_length=30,
+        choices=NOTIFICATION_TYPE_CHOICES,
+        default='general',
+        help_text="Category of notification for UI badge display"
+    )
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

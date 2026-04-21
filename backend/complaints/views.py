@@ -526,6 +526,40 @@ class ComplaintDetailView(APIView):
         except Complaint.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    def delete(self, request, pk):
+        """
+        DELETE /api/complaints/<id>/
+        Permanently removes a resolved spam complaint.
+        Restricted to Admin and Department roles only.
+        """
+        is_admin = request.user.is_authenticated and request.user.role == 'ADMIN'
+        is_dept_admin = request.user.is_authenticated and request.user.role in ('PWD', 'SANITATION', 'ELECTRICITY')
+
+        if not (is_admin or is_dept_admin):
+            return Response({'error': 'Only admins or department users can remove reports.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            complaint = Complaint.objects.get(pk=pk)
+        except Complaint.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        # Only allow deletion of resolved spam complaints
+        if complaint.status != 'Resolved':
+            return Response({'error': 'Only resolved complaints can be removed.'}, status=status.HTTP_400_BAD_REQUEST)
+        if complaint.predicted_category.lower() != 'spam':
+            return Response({'error': 'Only spam-category complaints can be removed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Department users can only delete from their own department
+        if is_dept_admin:
+            dept_map = {'PWD': 'PWD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICITY'}
+            if complaint.department != dept_map.get(request.user.role):
+                return Response({'error': 'You can only remove spam reports from your department.'}, status=status.HTTP_403_FORBIDDEN)
+
+        log_activity(request.user, f"Permanently removed resolved spam complaint #{complaint.id}")
+        complaint.delete()
+        return Response({'message': f'Spam report #{pk} removed successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+
 class DashboardStatsView(APIView):
     """GET /api/complaints/dashboard/stats/ - Rich KPIs for admin and department users."""
     permission_classes = [permissions.IsAuthenticated]
