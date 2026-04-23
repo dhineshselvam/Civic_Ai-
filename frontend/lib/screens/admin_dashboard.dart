@@ -509,7 +509,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             dense: true,
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(radius: 16, backgroundColor: AppTheme.primaryBlue, child: Text(u['username'][0].toUpperCase(), style: const TextStyle(fontSize: 14, color: Colors.white))),
-                            title: Text(u['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                            title: Row(
+                              children: [
+                                Text(u['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                                if (u['is_supervisor'] == true || u['is_supervisor'] == 1 || u['is_supervisor'].toString() == 'true')
+                                  const Padding(
+                                    padding: EdgeInsets.only(left: 8),
+                                    child: Icon(Icons.star_rounded, color: Colors.amberAccent, size: 18),
+                                  ),
+                              ],
+                            ),
                             trailing: IconButton(
                               icon: const Icon(Icons.remove_circle_outline, color: AppTheme.dangerRed, size: 24),
                               onPressed: () async {
@@ -536,7 +545,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                 dense: true,
                                 contentPadding: EdgeInsets.zero,
                                 leading: const Icon(Icons.person_add_outlined, color: AppTheme.accentTeal, size: 24),
-                                title: Text(crew['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                                title: Row(
+                                  children: [
+                                    Text(crew['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                                    if (crew['is_supervisor'] == true || crew['is_supervisor'] == 1 || crew['is_supervisor'].toString() == 'true')
+                                      const Padding(
+                                        padding: EdgeInsets.only(left: 8),
+                                        child: Icon(Icons.star_rounded, color: Colors.amberAccent, size: 18),
+                                      ),
+                                  ],
+                                ),
                                 subtitle: Text(crew['department'] ?? '', style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 13)),
                                 onTap: () async {
                                   await _api.manageCrewAssignment(complaintId: issue.id, action: 'add', userId: crew['id']);

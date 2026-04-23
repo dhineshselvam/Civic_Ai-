@@ -33,7 +33,7 @@ from sklearn.metrics import classification_report, accuracy_score
 # Paths
 # ---------------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CSV_PATH = os.path.join(BASE_DIR, '..', 'puducherry_civic_issues_10zones_prediction_ready')
+CSV_PATH = os.path.join(BASE_DIR, '..', 'puducherry_civic_issues_10zones_prediction_ready.csv')
 OUT_DIR = BASE_DIR  # save alongside the script
 
 
@@ -279,11 +279,11 @@ def main():
     joblib.dump(zone_monthly_centroids, centroids_path)
     joblib.dump(zone_hotspots, hotspots_path)
 
-    print(f"      ✓ {rf_path}")
-    print(f"      ✓ {enc_path}")
-    print(f"      ✓ {thresholds_path}")
-    print(f"      ✓ {centroids_path}")
-    print(f"      ✓ {hotspots_path}")
+    print(f"      - {rf_path}")
+    print(f"      - {enc_path}")
+    print(f"      - {thresholds_path}")
+    print(f"      - {centroids_path}")
+    print(f"      - {hotspots_path}")
 
     print("\n" + "=" * 60)
     print("SUCCESS – All models saved.")

@@ -3,6 +3,7 @@ import os
 import tempfile
 
 from django.utils import timezone
+from django.db.models import Q
 from rest_framework import status, permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -299,7 +300,8 @@ class ComplaintListView(APIView):
             
             # If specifically looking for assigned tasks
             if assigned_to_me == 'true':
-                 complaints = complaints.filter(assigned_users=user)
+                 # User sees tasks assigned specifically to them OR their teams
+                 complaints = complaints.filter(Q(assigned_users=user) | Q(assigned_teams__members=user)).distinct()
 
             if status_filter:
                 complaints = complaints.filter(status=status_filter)
@@ -433,58 +435,70 @@ class ComplaintDetailView(APIView):
             
             # Assignment logic
             crew_username = request.data.get('assigned_to')
+            team_id = request.data.get('team_id')
+            
             is_admin = request.user.role == 'ADMIN'
             is_dept_admin = request.user.role in ('PWD', 'SANITATION', 'ELECTRICITY')
 
-            if crew_username and (is_admin or is_dept_admin):
-                from users.models import CustomUser
-                try:
-                    crew_member = CustomUser.objects.get(username=crew_username, role='CREW')
-                    
-                    # If dept admin, ensure department match for both issue and crew
-                    if is_dept_admin:
-                        dept_map = {'PWD': 'PWD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICITY'}
-                        role_to_crew_dept = {'PWD': 'ROAD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICAL'}
-                        
-                        my_dept = dept_map.get(request.user.role)
-                        my_crew_dept = role_to_crew_dept.get(request.user.role)
-                        
-                        if complaint.department != my_dept:
-                             return Response({'error': 'You can only assign crew to your department issues'}, status=status.HTTP_403_FORBIDDEN)
-                        if crew_member.department != my_crew_dept:
-                             return Response({'error': 'You can only assign crew members from your department'}, status=status.HTTP_403_FORBIDDEN)
+            if (crew_username or team_id) and (is_admin or is_dept_admin):
+                from users.models import CustomUser, Team
+                
+                # Helper to check department match
+                def check_dept_match(obj_dept, is_team=False):
+                    if not is_dept_admin: return True
+                    dept_map = {'PWD': 'PWD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICITY'}
+                    role_to_crew_dept = {'PWD': 'ROAD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICAL'}
+                    my_dept = dept_map.get(request.user.role)
+                    my_target_dept = role_to_crew_dept.get(request.user.role)
+                    if complaint.department != my_dept: return False
+                    return obj_dept == my_target_dept
 
-                    if crew_member.team:
-                        complaint.assigned_teams.add(crew_member.team)
-                    
-                    # Also add individual user to assigned_users for detailed tracking
-                    complaint.assigned_users.add(crew_member)
-                    
-                    complaint.status = 'Assigned'
-                    complaint.save()
-                    log_activity(request.user, f"Assigned complaint #{complaint.id} to crew member '{crew_username}'")
-                    
-                    if complaint.user:
-                        # ASSIGNED
-                        send_notification(
-                            user=complaint.user,
-                            title="Complaint Assigned",
-                            message=(
-                                f"Your complaint #{complaint.id} has been assigned "
-                                f"to the concerned team for resolution."
-                            ),
-                        )
-                    
-                    send_notification(
-                        user=crew_member,
-                        title="New Task Assigned",
-                        message=f"You have been assigned a new task: {complaint.predicted_category}.",
-                    )
-                except CustomUser.DoesNotExist:
-                    return Response({'error': 'Crew member not found'}, status=status.HTTP_404_NOT_FOUND)
+                if team_id:
+                    try:
+                        team = Team.objects.get(pk=team_id)
+                        if not check_dept_match(team.department, is_team=True):
+                            return Response({'error': 'You can only assign teams from your department'}, status=status.HTTP_403_FORBIDDEN)
+                        
+                        complaint.assigned_teams.add(team)
+                        # Add all team members
+                        members = CustomUser.objects.filter(team=team)
+                        for m in members:
+                            complaint.assigned_users.add(m)
+                            send_notification(user=m, title="New Team Task", message=f"Your team has been assigned: {complaint.predicted_category}.")
+                        
+                        complaint.status = 'Assigned'
+                        complaint.save()
+                        log_activity(request.user, f"Assigned complaint #{complaint.id} to team '{team.name}'")
+                    except Team.DoesNotExist:
+                        return Response({'error': 'Team not found'}, status=status.HTTP_404_NOT_FOUND)
+
+                elif crew_username:
+                    try:
+                        crew_member = CustomUser.objects.get(username=crew_username, role='CREW')
+                        if not check_dept_match(crew_member.department):
+                             return Response({'error': 'Unauthorized department assignment'}, status=status.HTTP_403_FORBIDDEN)
+
+                        if crew_member.team:
+                            complaint.assigned_teams.add(crew_member.team)
+                        complaint.assigned_users.add(crew_member)
+                        complaint.status = 'Assigned'
+                        complaint.save()
+                        log_activity(request.user, f"Assigned complaint #{complaint.id} to crew member '{crew_username}'")
+                        send_notification(user=crew_member, title="New Task Assigned", message=f"You have been assigned: {complaint.predicted_category}.")
+                    except CustomUser.DoesNotExist:
+                        return Response({'error': 'Crew member not found'}, status=status.HTTP_404_NOT_FOUND)
             
             new_status = request.data.get('status')
             if new_status and new_status != old_status:
+                # Permission Check: Only Admins, Dept Admins, or Supervisors can change status
+                is_admin = request.user.role == 'ADMIN'
+                is_dept_admin = request.user.role in ('PWD', 'SANITATION', 'ELECTRICITY')
+                is_supervisor = getattr(request.user, 'is_supervisor', False)
+
+                if not (is_admin or is_dept_admin or is_supervisor):
+                    return Response({'error': 'Unauthorized: Only supervisors or admins can update issue status.'}, 
+                                  status=status.HTTP_403_FORBIDDEN)
+                
                 complaint.status = new_status
                 log_activity(request.user, f"Updated complaint #{complaint.id} status to '{new_status}'")
                 # Credibility: verified genuine reports earn a bonus
@@ -1239,3 +1253,7 @@ class PredictiveAnalysisView(APIView):
             })
 
         return Response(results, status=status.HTTP_200_OK)
+
+
+
+
