@@ -230,14 +230,76 @@ def mock_sms_alert(complaint, reason: str) -> None:
 def _send_in_app_notification(
     complaint, title: str, message: str, notification_type: str = "general"
 ) -> None:
-    """Send an in-app notification via the existing notification service."""
+    """
+    Fan-out an SLA notification to all relevant staff.
+
+    Recipients
+    ----------
+    - ADMIN users  : receive ALL SLA notifications (every complaint).
+    - Dept users   : receive notifications ONLY for complaints whose
+                     ``complaint.department`` matches their ``role``
+                     (PWD, SANITATION, ELECTRICITY).
+    - Citizens     : deliberately excluded — SLA alerts are operational,
+                     not citizen-facing.
+    """
     try:
         from complaints.notification_service import send_notification
-        if complaint.user:
-            send_notification(complaint.user, title, message, notification_type=notification_type)
+        from users.models import CustomUser
+
+        # 1. All admin users — always notified
+        admin_users = list(
+            CustomUser.objects.filter(role="ADMIN").only("id", "email", "role")
+        )
+
+        # 2. Department users scoped to this complaint's department
+        department_users = []
+        if complaint.department:
+            department_users = list(
+                CustomUser.objects.filter(role=complaint.department).only(
+                    "id", "email", "role"
+                )
+            )
+
+        # 3. Merge with deduplication (set on pk)
+        seen_pks: set = set()
+        recipients = []
+        for user in admin_users + department_users:
+            if user.pk not in seen_pks:
+                seen_pks.add(user.pk)
+                recipients.append(user)
+
+        if not recipients:
+            logger.warning(
+                "SLA notification for complaint #%s has no recipients "
+                "(no ADMIN or dept='%s' users found).",
+                complaint.pk,
+                complaint.department or "N/A",
+            )
+            return
+
+        for user in recipients:
+            send_notification(user, title, message, notification_type=notification_type)
+            logger.info(
+                "[SLA NOTIFY] complaint=#%s type=%s → %s (%s)",
+                complaint.pk,
+                notification_type,
+                user.email,
+                user.role,
+            )
+
+        logger.info(
+            "SLA notification dispatched to %d recipient(s) for complaint #%s [%s]",
+            len(recipients),
+            complaint.pk,
+            notification_type,
+        )
+
     except Exception as exc:  # pylint: disable=broad-except
         logger.error(
-            "SLA in-app notification failed for complaint #%s: %s", complaint.pk, exc
+            "SLA in-app notification FAILED for complaint #%s: %s",
+            complaint.pk,
+            exc,
+            exc_info=True,
         )
 
 

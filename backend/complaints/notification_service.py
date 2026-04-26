@@ -23,20 +23,28 @@ def send_notification(user, title, message, notification_type='general'):
     resolved_type = notification_type if notification_type in _VALID_TYPES else 'general'
     try:
         if user and not user.is_anonymous:
-            Notification.objects.create(
+            n = Notification.objects.create(
                 user=user,
                 title=title,
                 message=message,
                 type=resolved_type,
             )
             logger.info(
-                "In-App Notification saved for %s: [%s] %s",
-                user.email, resolved_type, title,
+                "[NOTIFICATION SAVED] pk=%s user=%s type=%s title=%r",
+                n.pk, user.email, resolved_type, title,
             )
             return True
     except Exception as e:
-        logger.error("Failed to save in-app notification: %s", str(e))
+        logger.error(
+            "[NOTIFICATION FAILED] user=%s type=%s title=%r error=%s",
+            getattr(user, 'email', 'unknown'),
+            resolved_type,
+            title,
+            str(e),
+            exc_info=True,
+        )
 
-    # Fallback to console debug
+    # Fallback to console debug (anonymous / unauthenticated)
     print(f"\n[FREE NOTIFICATION] [{resolved_type}] {title}: {message}\n")
     return True
+
