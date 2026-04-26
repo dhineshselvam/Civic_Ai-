@@ -119,21 +119,23 @@ class ApiService {
   /// Admin-only: Register a new Crew Member
   Future<Map<String, dynamic>> registerCrew({
     required String username,
-    required String email,
+    String? email,
     required String password,
     required String department,
     String? phone,
+    String? city,
   }) async {
     final response = await http.post(
       Uri.parse('$_baseUrl/api/users/register-crew/'),
       headers: _headers,
       body: jsonEncode({
         'username': username,
-        'email': email,
+        if (email != null) 'email': email,
         'password': password,
         'phone_number': phone,
         'role': 'CREW',
         'department': department,
+        if (city != null) 'city': city,
       }),
     );
     if (response.statusCode == 201) return jsonDecode(response.body);
@@ -308,6 +310,54 @@ class ApiService {
     }
   }
 
+  /// Create a new team (Admin/Dept only)
+  Future<void> createTeam(String name, String department) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/teams/'),
+      headers: _headers,
+      body: jsonEncode({'name': name, 'department': department}),
+    );
+    if (response.statusCode != 201) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
+  /// Auto-assemble teams from unassigned crew (Admin/Dept only)
+  Future<String> autoAssembleTeams() async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/teams/auto-assemble/'),
+      headers: _headers,
+    );
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      final data = jsonDecode(response.body);
+      return data['message'] ?? 'Successfully assembled teams.';
+    }
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
+
+  /// Toggle supervisor status of a crew member (Admin/Dept only)
+  Future<void> toggleSupervisor(int userId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/crew/$userId/toggle-supervisor/'),
+      headers: _headers,
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
+  /// Update live location for a crew member
+  Future<void> updateLocation(double lat, double lng) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/users/update-location/'),
+      headers: _headers,
+      body: jsonEncode({'latitude': lat, 'longitude': lng}),
+    );
+    if (response.statusCode != 200) {
+      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+    }
+  }
+
   /// Assign a complaint to a crew member (Admin only)
   Future<void> assignComplaint(int id, String crewUsername) async {
     final response = await http.post(
@@ -315,9 +365,16 @@ class ApiService {
       headers: _headers,
       body: jsonEncode({'assigned_to': crewUsername}),
     );
-    if (response.statusCode != 200) {
-      throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
-    }
+    if (response.statusCode != 200) throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
+  }
+
+  Future<void> assignComplaintToTeam(int complaintId, int teamId) async {
+    final response = await http.post(
+      Uri.parse('$_baseUrl/api/complaints/$complaintId/assign/'),
+      headers: _headers,
+      body: jsonEncode({'team_id': teamId}),
+    );
+    if (response.statusCode != 200) throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
 
   /// Auto-assign best crew (Admin only)
@@ -356,6 +413,13 @@ class ApiService {
     if (response.statusCode != 200) {
       throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
     }
+  }
+
+  /// Fetch current user profile details
+  Future<Map<String, dynamic>> getUserProfile() async {
+    final response = await http.get(Uri.parse('$_baseUrl/api/users/profile/'), headers: _headers);
+    if (response.statusCode == 200) return jsonDecode(response.body);
+    throw ApiException(statusCode: response.statusCode, message: _parseError(response.body, response.statusCode));
   }
 
   /// Update complaint status (Crew/Admin)

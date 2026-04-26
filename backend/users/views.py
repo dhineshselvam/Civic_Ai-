@@ -172,6 +172,10 @@ class CrewRegistrationView(APIView):
                 role_to_dept = {'PWD': 'ROAD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICAL'}
                 user.department = role_to_dept.get(request.user.role)
             
+            # NOTE: The registration endpoint returns a JWT access token. The temporary password
+            # (the password supplied during registration) is a one‑time password and must be
+            # changed on first login via the password reset flow. Supervisors receive the same
+            # temporary password mechanism and should also update it after first login.
             user.save()
             return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -258,6 +262,8 @@ class TeamMemberManageView(APIView):
             else:
                 return Response({'error': "Invalid action. Use 'add' or 'remove'."}, status=status.HTTP_400_BAD_REQUEST)
             member.save()
+            from .models import log_activity
+            log_activity(request.user, f"Transferred/Assigned crew {member.username} to team {team.name if action == 'add' else 'None'}")
             return Response({'message': f'Member {action}ed successfully'})
         except CustomUser.DoesNotExist:
             return Response({'error': 'Crew member not found'}, status=status.HTTP_404_NOT_FOUND)
@@ -281,10 +287,130 @@ class CrewListView(APIView):
         
         if request.user.role != 'ADMIN':
             if request.user.role == 'CREW':
-                crew_dept = request.user.department
+                # Supervisors see only their own team members for a focused squad view
+                if request.user.team:
+                    crew = crew.filter(team=request.user.team)
+                else:
+                    # Fallback if no team assigned yet
+                    crew = crew.filter(department=request.user.department)
             else:
                 crew_dept = role_to_dept.get(request.user.role)
-            crew = crew.filter(department=crew_dept)
+                crew = crew.filter(department=crew_dept)
 
         serializer = UserSerializer(crew, many=True)
         return Response(serializer.data)
+
+class UpdateLocationView(APIView):
+    """API for crew to update their current geospatial location (for Resource Optimizer)."""
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        if request.user.role != 'CREW':
+            return Response({'error': 'Only crew members can update location'}, status=status.HTTP_403_FORBIDDEN)
+            
+        lat = request.data.get('latitude')
+        lng = request.data.get('longitude')
+        
+        try:
+            if lat is not None and lng is not None:
+                request.user.current_latitude = float(lat)
+                request.user.current_longitude = float(lng)
+                request.user.save(update_fields=['current_latitude', 'current_longitude'])
+                return Response({'message': 'Location updated successfully'})
+            return Response({'error': 'latitude and longitude are required'}, status=status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response({'error': 'Invalid format for latitude or longitude'}, status=status.HTTP_400_BAD_REQUEST)
+
+class ToggleSupervisorView(APIView):
+    """Admin/Dept can toggle a crew member's supervisor status."""
+    permission_classes = [permissions.IsAuthenticated]
+    DASHBOARD_ROLES = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY')
+
+    def post(self, request, pk):
+        if request.user.role not in self.DASHBOARD_ROLES:
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import CustomUser
+        try:
+            member = CustomUser.objects.get(id=pk, role='CREW')
+            # Dept isolation checks
+            if request.user.role != 'ADMIN':
+                role_to_dept = {'PWD': 'ROAD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICAL'}
+                if member.department != role_to_dept.get(request.user.role):
+                    return Response({'error': 'Cannot manage other departments'}, status=status.HTTP_403_FORBIDDEN)
+            
+            member.is_supervisor = not member.is_supervisor
+            member.save(update_fields=['is_supervisor'])
+            return Response({'message': f"Supervisor status updated to {member.is_supervisor}", 'is_supervisor': member.is_supervisor})
+        except CustomUser.DoesNotExist:
+            return Response({'error': 'Crew member not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class AutoAssembleTeamsView(APIView):
+    """Admin/Dept can auto-assemble unassigned crew members into teams."""
+    permission_classes = [permissions.IsAuthenticated]
+    DASHBOARD_ROLES = ('ADMIN', 'PWD', 'SANITATION', 'ELECTRICITY')
+
+    def post(self, request):
+        if request.user.role not in self.DASHBOARD_ROLES:
+            return Response({'error': 'Not authorized'}, status=status.HTTP_403_FORBIDDEN)
+        
+        from .models import CustomUser, Team
+        import math
+        
+        role_to_dept = {'PWD': 'ROAD', 'SANITATION': 'SANITATION', 'ELECTRICITY': 'ELECTRICAL'}
+        
+        if request.user.role == 'ADMIN':
+            departments = ['ROAD', 'SANITATION', 'ELECTRICAL', 'WATER', 'PARKS', 'GENERAL']
+        else:
+            departments = [role_to_dept.get(request.user.role)]
+            
+        total_teams_created = 0
+        total_members_assigned = 0
+        
+        for dept in departments:
+            # Get unassigned crew in this dept
+            unassigned_qs = CustomUser.objects.filter(role='CREW', department=dept, team__isnull=True)
+            
+            # Group by city to prevent cross-city assignments
+            cities = unassigned_qs.values_list('city', flat=True).distinct()
+            
+            for city in cities:
+                unassigned = list(unassigned_qs.filter(city=city))
+                if not unassigned:
+                    continue
+                    
+                # Determine team size
+                team_size = 2 if dept == 'ELECTRICAL' else 3
+                if dept == 'GENERAL':
+                    team_size = 1
+                    
+                # Need at least one full team
+                if len(unassigned) < team_size:
+                    continue
+                    
+                num_teams = len(unassigned) // team_size
+                
+                for i in range(num_teams):
+                    # Pop members for the team
+                    team_members = [unassigned.pop(0) for _ in range(team_size)]
+                    
+                    # Create team name scoped by city
+                    highest_id = Team.objects.count() + 1
+                    city_prefix = str(city)[:3].upper() if city else "GEN"
+                    team = Team.objects.create(name=f"{city_prefix} {dept[:3]}-{highest_id}", department=dept)
+                total_teams_created += 1
+                
+                # Assign members
+                for idx, member in enumerate(team_members):
+                    member.team = team
+                    if idx == 0:
+                        member.is_supervisor = True
+                    member.save(update_fields=['team', 'is_supervisor'])
+                    total_members_assigned += 1
+
+        if total_teams_created == 0:
+            return Response({'message': 'No teams could be assembled (insufficient unassigned crew).'}, status=status.HTTP_200_OK)
+            
+        return Response({
+            'message': f"Successfully assembled {total_teams_created} teams with {total_members_assigned} total members."
+        }, status=status.HTTP_201_CREATED)

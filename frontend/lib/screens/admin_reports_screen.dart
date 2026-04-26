@@ -414,10 +414,12 @@ class _AdminReportCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
-                              'Crew: ${report.assignedUsers!.map((u) => u['username']).join(', ')}',
-                              style: const TextStyle(color: AppTheme.accentTeal, fontSize: 12, fontWeight: FontWeight.w600),
-                              maxLines: 2, overflow: TextOverflow.ellipsis,
-                            ),
+                                (report.assignedTeams != null && report.assignedTeams!.isNotEmpty)
+                                    ? 'Team: ${report.assignedTeams!.map((t) => t['name']).join(', ')}'
+                                    : 'Crew: ${report.assignedUsers!.map((u) => u['username']).join(', ')}',
+                                style: const TextStyle(color: AppTheme.accentTeal, fontSize: 12, fontWeight: FontWeight.w600),
+                                maxLines: 2, overflow: TextOverflow.ellipsis,
+                              ),
                           ),
                         ]),
                       ],
@@ -686,56 +688,47 @@ class _AdminReportCard extends StatelessWidget {
 
   void _showAssignDialog(BuildContext context) async {
     final api = ApiService();
-    List<Map<String, dynamic>> crewList = [];
-    String? selectedUsername;
-    bool loadingCrew = true;
+    List<Map<String, dynamic>> teamList = [];
+    int? selectedTeamId;
+    bool loadingTeams = true;
     String? assignError;
-    final String? suggestedDept = _suggestDepartment(report.predicted_category);
 
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) {
-          if (loadingCrew) {
-            api.listCrew(department: suggestedDept).then((list) {
-              if (list.isEmpty) {
-                api.listCrew().then((all) {
-                  setDlgState(() { crewList = all; loadingCrew = false; });
-                }).catchError((e) {
-                  setDlgState(() { loadingCrew = false; assignError = e.toString(); });
-                });
-              } else {
-                setDlgState(() { crewList = list; loadingCrew = false; });
-              }
+          if (loadingTeams) {
+            api.listTeams().then((list) {
+              setDlgState(() { teamList = list; loadingTeams = false; });
             }).catchError((e) {
-              setDlgState(() { loadingCrew = false; assignError = e.toString(); });
+              setDlgState(() { loadingTeams = false; assignError = e.toString(); });
             });
           }
 
           return AlertDialog(
-            title: const Text('Assign to Crew'),
-            content: loadingCrew
+            title: const Text('Assign Team'),
+            content: loadingTeams
                 ? const SizedBox(height: 80, child: Center(child: CircularProgressIndicator()))
                 : assignError != null
                     ? Text(assignError!, style: const TextStyle(color: AppTheme.dangerRed))
-                    : crewList.isEmpty
-                        ? const Text('No crew members registered yet.', style: TextStyle(color: AppTheme.textMediumContrast))
-                        : DropdownButtonFormField<String>(
-                            value: selectedUsername,
+                    : teamList.isEmpty
+                        ? const Text('No teams found for your department.', style: TextStyle(color: AppTheme.textMediumContrast))
+                        : DropdownButtonFormField<int>(
+                            value: selectedTeamId,
                             isExpanded: true,
-                            decoration: const InputDecoration(labelText: 'Select Crew Member'),
-                            items: crewList.map((c) => DropdownMenuItem<String>(
-                              value: c['username'] as String,
-                              child: Text(c['username'] as String),
+                            decoration: const InputDecoration(labelText: 'Select Operational Team'),
+                            items: teamList.map((t) => DropdownMenuItem<int>(
+                              value: t['id'] as int,
+                              child: Text(t['name'] as String),
                             )).toList(),
-                            onChanged: (v) => setDlgState(() => selectedUsername = v),
+                            onChanged: (v) => setDlgState(() => selectedTeamId = v),
                           ),
             actions: [
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-              if (!loadingCrew && selectedUsername != null)
+              if (!loadingTeams && selectedTeamId != null)
                 ElevatedButton(
                   onPressed: () async {
-                    await api.assignComplaint(report.id, selectedUsername!);
+                    await api.assignComplaintToTeam(report.id, selectedTeamId!);
                     if (ctx.mounted) Navigator.pop(ctx);
                     onRefresh();
                   },
@@ -899,8 +892,24 @@ class _AdminReportCard extends StatelessWidget {
                                 return ListTile(
                                   dense: true,
                                   contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.person_add_outlined, color: AppTheme.accentTeal, size: 24),
-                                  title: Text(crew['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                                  leading: Icon(
+                                    crew['is_supervisor'] == true ? Icons.stars_rounded : Icons.person_add_outlined,
+                                    color: crew['is_supervisor'] == true ? AppTheme.warningOrange : AppTheme.accentTeal,
+                                    size: 24,
+                                  ),
+                                  title: Row(
+                                    children: [
+                                      Text(crew['username'], style: const TextStyle(color: AppTheme.textHighContrast, fontSize: 15)),
+                                      if (crew['is_supervisor'] == true) ...[
+                                        const SizedBox(width: 8),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(color: AppTheme.warningOrange.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                                          child: const Text('SUPERVISOR', style: TextStyle(color: AppTheme.warningOrange, fontSize: 9, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
                                   subtitle: Text(crew['department'] ?? '', style: const TextStyle(color: AppTheme.textMediumContrast, fontSize: 13)),
                                   onTap: () async {
                                     await _api.manageCrewAssignment(complaintId: issue.id, action: 'add', userId: crew['id']);

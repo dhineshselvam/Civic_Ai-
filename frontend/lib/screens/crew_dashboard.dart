@@ -1,5 +1,6 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/api_service.dart';
 
 class CrewDashboardScreen extends StatefulWidget {
@@ -17,6 +18,23 @@ class _CrewDashboardScreenState extends State<CrewDashboardScreen> {
   void initState() {
     super.initState();
     _tasksFuture = _api.getCrewTasks();
+    _pingLocation();
+  }
+
+  Future<void> _pingLocation() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+        await _api.updateLocation(position.latitude, position.longitude);
+        debugPrint("Location successfully updated to ${position.latitude}, ${position.longitude}");
+      }
+    } catch (e) {
+      debugPrint("Failed to ping location: $e");
+    }
   }
 
   void _refresh() {

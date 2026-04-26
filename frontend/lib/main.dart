@@ -10,6 +10,7 @@ import 'screens/admin_reports_screen.dart';
 import 'screens/crew_management_screen.dart';
 import 'screens/city_analytics_screen.dart';
 import 'screens/predictive_analysis_screen.dart';
+import 'screens/supervisor_dashboard.dart';
 import 'services/api_service.dart';
 import 'theme/app_theme.dart';
 
@@ -43,6 +44,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   bool _isLoggedIn = false;
   bool _initialized = false;
   String _role = 'CITIZEN';
+  bool _isSupervisor = false;
 
   @override
   void initState() {
@@ -53,19 +55,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   Future<void> _tryRestoreSession() async {
     final restored = await ApiService().restoreSession();
     if (restored) {
-      // Reload the user profile to get the role
       try {
         final profile = await ApiService().getProfile();
         if (mounted) {
           setState(() {
             _isLoggedIn = true;
             _role = (profile['role'] ?? 'CITIZEN').toString().toUpperCase();
+            _isSupervisor = profile['is_supervisor'] == true;
             _initialized = true;
           });
           return;
         }
       } catch (_) {
-        ApiService().clearToken(); // Token expired/invalid, force re-login
+        ApiService().clearToken();
       }
     }
     if (mounted) setState(() => _initialized = true);
@@ -75,7 +77,8 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _isLoggedIn = true;
       _role = (userData['user']['role'] ?? 'CITIZEN').toString().toUpperCase();
-      _currentIndex = 0; // Reset tab on login
+      _isSupervisor = userData['user']['is_supervisor'] == true;
+      _currentIndex = 0;
     });
   }
 
@@ -84,17 +87,16 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     setState(() {
       _isLoggedIn = false;
       _role = 'CITIZEN';
+      _isSupervisor = false;
       _currentIndex = 0;
     });
   }
 
   List<Widget> _getScreens() {
-    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY' || _role == 'CREW') {
-      // Determine the page title for the reports screen
+    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY') {
       final reportsTitle = _role == 'ADMIN' ? 'ALL REPORTS'
           : _role == 'PWD' ? 'PWD REPORTS'
           : _role == 'SANITATION' ? 'SANITATION REPORTS'
-          : _role == 'ELECTRICITY' ? 'ELECTRICITY REPORTS'
           : 'DEPT REPORTS';
       return [
         const AdminDashboardScreen(),
@@ -102,6 +104,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         CrewManagementScreen(),
         CityAnalyticsScreen(),
         const PredictiveAnalysisScreen(),
+        const NotificationInboxScreen(),
+        ProfileScreen(onLogout: _logout),
+      ];
+    } else if (_role == 'CREW') {
+      return [
+        _isSupervisor ? const SupervisorDashboardScreen() : const CrewDashboardScreen(),
         const NotificationInboxScreen(),
         ProfileScreen(onLogout: _logout),
       ];
@@ -116,13 +124,19 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   List<BottomNavigationBarItem> _getNavItems() {
-    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY' || _role == 'CREW') {
+    if (_role == 'ADMIN' || _role == 'PWD' || _role == 'SANITATION' || _role == 'ELECTRICITY') {
       return const [
         BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded, size: 26), label: 'Status'),
         BottomNavigationBarItem(icon: Icon(Icons.fact_check_rounded, size: 26), label: 'Reports'),
         BottomNavigationBarItem(icon: Icon(Icons.people_alt_rounded, size: 26), label: 'Crew'),
         BottomNavigationBarItem(icon: Icon(Icons.analytics_rounded, size: 26), label: 'Analytics'),
         BottomNavigationBarItem(icon: Icon(Icons.auto_graph_rounded, size: 26), label: 'Predict'),
+        BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded, size: 26), label: 'Alerts'),
+        BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
+      ];
+    } else if (_role == 'CREW') {
+      return const [
+        BottomNavigationBarItem(icon: Icon(Icons.dashboard_rounded, size: 26), label: 'Tasks'),
         BottomNavigationBarItem(icon: Icon(Icons.notifications_rounded, size: 26), label: 'Alerts'),
         BottomNavigationBarItem(icon: Icon(Icons.person_rounded, size: 26), label: 'Profile'),
       ];

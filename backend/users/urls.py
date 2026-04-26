@@ -11,7 +11,10 @@ from .views import (
     CrewRegistrationView,
     TeamListView,
     TeamMemberManageView,
-    CrewListView
+    CrewListView,
+    UpdateLocationView,
+    ToggleSupervisorView,
+    AutoAssembleTeamsView
 )
 
 urlpatterns = [
@@ -27,4 +30,7 @@ urlpatterns = [
     path('teams/', TeamListView.as_view(), name='team_list'),
     path('teams/<int:pk>/members/', TeamMemberManageView.as_view(), name='team_member_manage'),
     path('activity-log/', ActivityLogView.as_view(), name='activity_log'),
+    path('update-location/', UpdateLocationView.as_view(), name='update_location'),
+    path('crew/<int:pk>/toggle-supervisor/', ToggleSupervisorView.as_view(), name='toggle_supervisor'),
+    path('teams/auto-assemble/', AutoAssembleTeamsView.as_view(), name='auto_assemble_teams'),
 ]
